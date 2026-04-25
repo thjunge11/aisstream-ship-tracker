@@ -296,6 +296,7 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
 		"time_utc": "2026-04-25 09:47:25.320917684 +0000 UTC"
 	}
 }
+```
 
 ## Findings:
 - messages share common metatdata fields: MMSI, ShipName, latitude, longitude, time_utc
