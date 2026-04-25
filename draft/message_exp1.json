@@ -1,0 +1,32 @@
+{
+    "Message": {
+        "PositionReport": {
+            "Cog": 31.5,
+            "CommunicationState": 82117,
+            "Latitude": 22.36597,
+            "Longitude": 114.106865,
+            "MessageID": 1,
+            "NavigationalStatus": 15,
+            "PositionAccuracy": false,
+            "Raim": false,
+            "RateOfTurn": 0,
+            "RepeatIndicator": 0,
+            "Sog": 0,
+            "Spare": 0,
+            "SpecialManoeuvreIndicator": 0,
+            "Timestamp": 44,
+            "TrueHeading": 284,
+            "UserID": 477995827,
+            "Valid": true
+        }
+    },
+    "MessageType": "PositionReport",
+    "MetaData": {
+        "MMSI": 477995827,
+        "MMSI_String": 477995827,
+        "ShipName": "GUO SI              ",
+        "latitude": 22.36597,
+        "longitude": 114.10687,
+        "time_utc": "2026-04-24 12:29:45.191749062 +0000 UTC"
+    }
+}
