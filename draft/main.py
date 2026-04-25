@@ -4,6 +4,13 @@ import json
 from datetime import datetime, timezone
 from kafka import KafkaProducer
 
+
+# load API_Key from .env file
+from dotenv import load_dotenv
+import os
+load_dotenv()
+API_Key = os.getenv("API_Key")
+
 async def connect_ais_stream():
 
     async with websockets.connect("wss://stream.aisstream.io/v0/stream") as websocket:
@@ -20,7 +27,7 @@ async def connect_ais_stream():
         )
         
         # subscribe async to the AIS stream with the API key and bounding box
-        subscribe_message = {"APIKey": "35e1f161044b65d646e45177c27ee0c8721cd2ea", "BoundingBoxes": [[[-90, -180], [90, 180]]]}
+        subscribe_message = {"APIKey": API_Key, "BoundingBoxes": [[[-90, -180], [90, 180]]]}
         subscribe_message_json = json.dumps(subscribe_message)
         await websocket.send(subscribe_message_json)
 
@@ -56,14 +63,3 @@ async def connect_ais_stream():
 
 if __name__ == "__main__":
     asyncio.run(connect_ais_stream())
-
-
-
-    
-
-
-
-
-# Send a simple message
-
-print("Message sent!")
