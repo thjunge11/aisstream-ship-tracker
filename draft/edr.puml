@@ -1,0 +1,41 @@
+@startuml
+hide circle
+
+entity "ships_live_data" as ships {
+    * ship_id : INTEGER <<PK>>
+    --
+    ship_name : VARCHAR(50)
+    course_over_ground : SMALLINT
+    speed_over_ground : SMALLINT
+    navigational_status : VARCHAR(20)
+    rate_of_turn : SMALLINT
+    latitude : DOUBLE PRECISION
+    longitude : DOUBLE PRECISION
+    updated_at : TIMESTAMPTZ
+}
+
+entity "tracking_config" as config {
+    * ship_id : INTEGER <<PK, FK>>
+    --
+    enabled : BOOLEAN
+    enabled_from : TIMESTAMPTZ
+    enabled_to : TIMESTAMPTZ
+}
+
+entity "position_history" as history {
+    * id : BIGSERIAL <<PK>>
+    --
+    ship_id : INTEGER <<FK>>
+    course_over_ground : SMALLINT
+    speed_over_ground : SMALLINT
+    navigational_status : VARCHAR(20)
+    rate_of_turn : SMALLINT
+    latitude : DOUBLE PRECISION
+    longitude : DOUBLE PRECISION
+    recorded_at : TIMESTAMPTZ
+}
+
+ships ||--o| config : "specifies tracking on/off"
+ships ||--o{ history : "has positions if tracked"
+
+@enduml
