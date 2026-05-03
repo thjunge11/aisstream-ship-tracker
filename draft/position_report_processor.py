@@ -42,6 +42,8 @@ CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "ships-live-data-processor")
 # ---------------------------------------------------------------------------
 # AIS NavigationalStatus code → human-readable string (ITU-R M.1371-5)
 # ---------------------------------------------------------------------------
+NAV_STATUS_NOT_DEFINED = 15  # AIS default / not available value
+
 NAVIGATIONAL_STATUS: dict[int, str] = {
     0: "Under way using engine",
     1: "At anchor",
@@ -138,7 +140,12 @@ def _parse_time_utc(time_utc_raw: str) -> str:
         dt = datetime.strptime(dt_part, "%Y-%m-%d %H:%M:%S.%f").replace(
             tzinfo=timezone.utc
         )
-    except Exception:
+    except (ValueError, AttributeError) as exc:
+        logging.getLogger(__name__).warning(
+            "Could not parse time_utc %r, using current UTC time: %s",
+            time_utc_raw,
+            exc,
+        )
         dt = datetime.now(timezone.utc)
     return dt.isoformat()
 
@@ -151,7 +158,7 @@ def transform_to_ships_live_data(msg: dict) -> dict:
     pr = msg["Message"]["PositionReport"]
     meta = msg["MetaData"]
 
-    nav_status_int = pr.get("NavigationalStatus", 15)
+    nav_status_int = pr.get("NavigationalStatus", NAV_STATUS_NOT_DEFINED)
     nav_status_str = NAVIGATIONAL_STATUS.get(nav_status_int, "Not defined")
 
     # Prefer the (already-rounded) MetaData coordinates; fall back to the
@@ -235,8 +242,7 @@ def main() -> None:
             if not valid:
                 skipped += 1
                 log.debug(
-                    "Skipped message (offset=%d): %s",
-                    kafka_msg.offset,
+                    "Skipped message: %s",
                     reason,
                 )
                 continue
