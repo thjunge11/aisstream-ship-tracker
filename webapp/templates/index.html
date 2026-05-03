@@ -103,6 +103,8 @@
     .ship-name { font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ship-meta { font-size: 0.7rem; color: #888; }
 
+    .popup-history-btn { margin-top: 8px; text-align: center; }
+
     .history-toggle {
       padding: 2px 8px;
       font-size: 0.7rem;
@@ -353,7 +355,7 @@
         info.className = 'ship-info';
         info.innerHTML = `
           <div class="ship-name">${escHtml(p.ship_name || 'Unknown')}</div>
-          <div class="ship-meta">MMSI ${p.ship_id} · ${p.speed_over_ground} kn · ${p.course_over_ground}°</div>
+          <div class="ship-meta">MMSI ${p.ship_id} · ${p.speed_over_ground != null ? p.speed_over_ground + ' kn' : '—'} · ${p.course_over_ground != null ? p.course_over_ground + '°' : '—'}</div>
         `;
 
         item.appendChild(dot);
@@ -399,11 +401,11 @@
       const html = `
         <div class="popup-title">${escHtml(p.ship_name || 'Unknown Ship')}</div>
         <div class="popup-row"><span class="popup-label">MMSI</span><span class="popup-value">${p.ship_id}</span></div>
-        <div class="popup-row"><span class="popup-label">COG</span><span class="popup-value">${p.course_over_ground}°</span></div>
-        <div class="popup-row"><span class="popup-label">SOG</span><span class="popup-value">${sog} kn</span></div>
+        <div class="popup-row"><span class="popup-label">COG</span><span class="popup-value">${p.course_over_ground != null ? p.course_over_ground + '°' : '—'}</span></div>
+        <div class="popup-row"><span class="popup-label">SOG</span><span class="popup-value">${sog != null ? sog + ' kn' : '—'}</span></div>
         <div class="popup-row"><span class="popup-label">Status</span><span class="popup-value">${escHtml(p.navigational_status || '—')}</span></div>
         <div class="popup-row"><span class="popup-label">Updated</span><span class="popup-value">${updatedAt}</span></div>
-        ${p.tracked ? `<div style="margin-top:8px;text-align:center"><button class="history-toggle ${activeHistory.has(p.ship_id) ? 'active' : ''}" onclick="toggleHistory(${p.ship_id})">${activeHistory.has(p.ship_id) ? '✕ Hide History' : '⟳ Show History'}</button></div>` : ''}
+        ${p.tracked ? `<div class="popup-history-btn"><button class="history-toggle ${activeHistory.has(p.ship_id) ? 'active' : ''}" onclick="toggleHistory(${p.ship_id})">${activeHistory.has(p.ship_id) ? '✕ Hide History' : '⟳ Show History'}</button></div>` : ''}
       `;
 
       currentPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: '260px' })
