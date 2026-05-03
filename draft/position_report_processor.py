@@ -32,8 +32,9 @@ from kafka import KafkaConsumer, KafkaProducer
 # Configuration – override via environment variables or edit here directly
 # ---------------------------------------------------------------------------
 import os
+import signal
 
-BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 INPUT_TOPIC = os.getenv("INPUT_TOPIC", "positionreports")
 OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC", "shipslivedata")
 CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "ships-live-data-processor")
@@ -67,6 +68,7 @@ NAVIGATIONAL_STATUS: dict[int, str] = {
 _LAT_NOT_AVAILABLE = 91.0
 _LON_NOT_AVAILABLE = 181.0
 _COG_NOT_AVAILABLE = 360.0
+# AIS spec: SOG >= 102.3 knots means "not available / not applicable"
 _SOG_NOT_AVAILABLE = 102.3
 
 
@@ -153,9 +155,13 @@ def transform_to_ships_live_data(msg: dict) -> dict:
     nav_status_str = NAVIGATIONAL_STATUS.get(nav_status_int, "Not defined")
 
     # Prefer the (already-rounded) MetaData coordinates; fall back to the
-    # full-precision PositionReport values.
-    latitude = meta.get("latitude") or pr.get("Latitude")
-    longitude = meta.get("longitude") or pr.get("Longitude")
+    # full-precision PositionReport values.  Explicit None checks are required
+    # so that the valid coordinate value 0.0 (equator / prime meridian) is not
+    # treated as falsy.
+    meta_lat = meta.get("latitude")
+    latitude = meta_lat if meta_lat is not None else pr.get("Latitude")
+    meta_lon = meta.get("longitude")
+    longitude = meta_lon if meta_lon is not None else pr.get("Longitude")
 
     return {
         "ship_id": meta["MMSI"],
@@ -184,9 +190,20 @@ def main() -> None:
     )
     log = logging.getLogger(__name__)
 
+    # Graceful shutdown flag
+    running = True
+
+    def _handle_signal(signum, frame):  # noqa: ANN001
+        nonlocal running
+        log.info("Received signal %d, shutting down…", signum)
+        running = False
+
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+
     consumer = KafkaConsumer(
         INPUT_TOPIC,
-        bootstrap_servers=BOOTSTRAP_SERVERS,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
         auto_offset_reset="earliest",
         enable_auto_commit=True,
@@ -194,7 +211,7 @@ def main() -> None:
     )
 
     producer = KafkaProducer(
-        bootstrap_servers=BOOTSTRAP_SERVERS,
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         value_serializer=lambda v: json.dumps(v).encode("utf-8"),
     )
 
@@ -207,32 +224,37 @@ def main() -> None:
     processed = 0
     skipped = 0
 
-    for kafka_msg in consumer:
-        msg = kafka_msg.value
+    try:
+        for kafka_msg in consumer:
+            if not running:
+                break
 
-        valid, reason = validate_position_report(msg)
-        if not valid:
-            skipped += 1
-            log.debug(
-                "Skipped message (offset=%d, MMSI=%s): %s",
-                kafka_msg.offset,
-                msg.get("MetaData", {}).get("MMSI"),
-                reason,
-            )
-            continue
+            msg = kafka_msg.value
 
-        ships_live = transform_to_ships_live_data(msg)
-        producer.send(OUTPUT_TOPIC, ships_live)
-        processed += 1
+            valid, reason = validate_position_report(msg)
+            if not valid:
+                skipped += 1
+                log.debug(
+                    "Skipped message (offset=%d): %s",
+                    kafka_msg.offset,
+                    reason,
+                )
+                continue
 
-        if processed % 1000 == 0:
-            producer.flush()
-            log.info(
-                "Progress: processed=%d  skipped=%d", processed, skipped
-            )
+            ships_live = transform_to_ships_live_data(msg)
+            producer.send(OUTPUT_TOPIC, ships_live)
+            processed += 1
 
-    producer.flush()
-    log.info("Done. processed=%d  skipped=%d", processed, skipped)
+            if processed % 1000 == 0:
+                producer.flush()
+                log.info(
+                    "Progress: processed=%d  skipped=%d", processed, skipped
+                )
+    finally:
+        producer.flush()
+        producer.close()
+        consumer.close()
+        log.info("Shutdown complete. processed=%d  skipped=%d", processed, skipped)
 
 
 if __name__ == "__main__":
