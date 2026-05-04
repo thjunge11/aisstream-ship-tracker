@@ -8,7 +8,7 @@ from kafka import KafkaProducer
 # load API_Key from .env file
 from dotenv import load_dotenv
 import os
-load_dotenv()
+load_dotenv("../.env")
 API_Key = os.getenv("API_Key")
 
 async def connect_ais_stream():
@@ -29,6 +29,7 @@ async def connect_ais_stream():
         # subscribe async to the AIS stream with the API key and bounding box
         subscribe_message = {"APIKey": API_Key, "BoundingBoxes": [[[-90, -180], [90, 180]]]}
         subscribe_message_json = json.dumps(subscribe_message)
+        print(subscribe_message_json)
         await websocket.send(subscribe_message_json)
 
         async for message_json in websocket:

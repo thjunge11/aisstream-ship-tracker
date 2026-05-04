@@ -6,16 +6,15 @@ validates them, and writes the transformed data — ready for the
 `ships_live_data` table — to the Kafka topic `shipslivedata`.
 
 Input message format (topic: positionreports):
-    See message_exp1.json for the full structure.
+    See PositionReport.json for the full structure.
 
 Output message format (topic: shipslivedata):
     {
         "ship_id":              int,   -- MMSI (9 digits)
         "ship_name":            str,
-        "course_over_ground":   int,   -- degrees, rounded (0-360)
-        "speed_over_ground":    int,   -- 0.1-knot units (e.g. 45 = 4.5 kn)
+        "course_over_ground":   float, -- degrees
+        "speed_over_ground":    float, -- knots
         "navigational_status":  str,   -- human-readable AIS status
-        "rate_of_turn":         int,   -- deg/min, -128..127 (AIS raw value)
         "latitude":             float, -- decimal degrees
         "longitude":            float, -- decimal degrees
         "updated_at":           str    -- ISO-8601 timestamp (UTC)
@@ -34,8 +33,10 @@ from kafka import KafkaConsumer, KafkaProducer
 import os
 import signal
 
+from dotenv import load_dotenv
+load_dotenv("../.env")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
-INPUT_TOPIC = os.getenv("INPUT_TOPIC", "positionreports")
+INPUT_TOPIC = os.getenv("INPUT_TOPIC", "PositionReport")
 OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC", "shipslivedata")
 CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "ships-live-data-processor")
 
@@ -173,13 +174,9 @@ def transform_to_ships_live_data(msg: dict) -> dict:
     return {
         "ship_id": meta["MMSI"],
         "ship_name": meta.get("ShipName", "").strip(),
-        # COG stored as integer degrees (0-359)
-        "course_over_ground": round(pr.get("Cog", 0)) % 360,
-        # SOG stored in 0.1-knot units so one decimal place of precision is
-        # kept inside the SMALLINT column (e.g. 4.5 kn → 45)
-        "speed_over_ground": round(pr.get("Sog", 0) * 10),
+        "course_over_ground": pr.get("Cog", 0),
+        "speed_over_ground": pr.get("Sog", 0),
         "navigational_status": nav_status_str,
-        "rate_of_turn": pr.get("RateOfTurn", 0),
         "latitude": latitude,
         "longitude": longitude,
         "updated_at": _parse_time_utc(meta.get("time_utc", "")),
@@ -241,7 +238,7 @@ def main() -> None:
             valid, reason = validate_position_report(msg)
             if not valid:
                 skipped += 1
-                log.debug(
+                log.info(
                     "Skipped message: %s",
                     reason,
                 )

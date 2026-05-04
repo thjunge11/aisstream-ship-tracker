@@ -208,12 +208,16 @@
         const blob = new Blob([svgStr], { type: 'image/svg+xml' });
         const url  = URL.createObjectURL(blob);
         img.onload = () => {
+          const w = img.naturalWidth;
+          const h = img.naturalHeight;
           const canvas = document.createElement('canvas');
-          canvas.width  = img.width;
-          canvas.height = img.height;
-          canvas.getContext('2d').drawImage(img, 0, 0);
+          canvas.width  = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
           URL.revokeObjectURL(url);
-          resolve({ data: canvas.getContext('2d').getImageData(0, 0, img.width, img.height), width: img.width, height: img.height });
+          const imageData = ctx.getImageData(0, 0, w, h);
+          resolve({ data: imageData.data, width: w, height: h });
         };
         img.onerror = reject;
         img.src = url;

@@ -1,34 +1,32 @@
 -- Latest position (fast lookup)
 CREATE TABLE ships_live_data (
     ship_id INTEGER PRIMARY KEY,
-    ship_name VARCHAR(50),
-    course_over_ground SMALLINT,
-    speed_over_ground SMALLINT,
-    navigational_status VARCHAR(20),
-    rate_of_turn SMALLINT,
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
-    updated_at TIMESTAMPTZ
+    ship_name VARCHAR(50) NOT NULL,
+    course_over_ground FLOAT,
+    speed_over_ground FLOAT,
+    navigational_status VARCHAR(50),
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Config: which ships get full history
 CREATE TABLE tracking_config (
     ship_id INTEGER PRIMARY KEY REFERENCES ships_live_data (ship_id),
     enabled BOOLEAN DEFAULT TRUE,
-    enabled_from TIMESTAMPTZ,
+    enabled_from TIMESTAMPTZ NOT NULL DEFAULT now(),
     enabled_to TIMESTAMPTZ -- NULL means still active
 );
 
 -- All history in one place
 CREATE TABLE position_history (
-    id BIGSERIAL,
+    id BIGSERIAL PRIMARY KEY,
     ship_id INTEGER NOT NULL REFERENCES ships_live_data (ship_id),
-    course_over_ground SMALLINT,
-    speed_over_ground SMALLINT,
-    navigational_status VARCHAR(20),
-    rate_of_turn SMALLINT,
-    latitude DOUBLE PRECISION,
-    longitude DOUBLE PRECISION,
+    course_over_ground FLOAT,
+    speed_over_ground FLOAT,
+    navigational_status VARCHAR(50),
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
     recorded_at TIMESTAMPTZ NOT NULL
 )
 PARTITION BY

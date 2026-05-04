@@ -318,3 +318,29 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
 - Visualize ShipPositions on map with streamlit.map for crosschecking bounding box correctness
 - Explore the message structure and extract relevant fields for analysis
 - Set up a monitoring dashboard to visualize the load statistics and message processing performance in real-time.
+
+# 04.05.2026
+- AIS final data model
+  
+  ![ais_data_model.png](assets/ais_data_model.png)
+
+- Application architecture
+ 
+
+``` code
+  Data source: aisstream.io websocket (WebSocket API, subscription with API key and bounding box)
+        ↓ 
+  Kafka Producer (Python) input topics (message["MessageType"], message)
+        ↓ 
+  Kafka ELT Consumer (Python) reads from Kafka topic "PositionReport"
+        ↓ 
+  [validate and transform data]
+		↓
+  Kafka ELT Producer (Python) writes to Kafka topic "ships_live_data"
+		↓
+  Kafka Consumer (Python) reads from Kafka topic "ships_live_data" and writes to PostgreSQL table "ships_live_data"
+  Kafka Consumer (Python) reads from Kafka topic "ships_live_data" and writes to PostgreSQL table "position_history" for active tracked ships from table "tracking_config"
+		↓
+  FlaskWebApp (Python) reads from PostgreSQL tables "ships_live_data" and "position_history" and visualizes ship positions on a map with MapLibre GL JS
+  
+```

@@ -1,7 +1,7 @@
 """
 Live Ship Data DB Writer
 ========================
-Reads processed ship-position messages from the Kafka topic `liveshipdata`
+Reads processed ship-position messages from the Kafka topic `ships_live_data`
 and upserts them into the PostgreSQL table `ships_live_data`.
 
 A row with the same `ship_id` (MMSI) is updated in place; new ships are
@@ -12,10 +12,9 @@ Expected message format (as produced by position_report_processor.py):
     {
         "ship_id":              int,
         "ship_name":            str,
-        "course_over_ground":   int,
-        "speed_over_ground":    int,
+        "course_over_ground":   float,
+        "speed_over_ground":    float,
         "navigational_status":  str,
-        "rate_of_turn":         int,
         "latitude":             float,
         "longitude":            float,
         "updated_at":           str   -- ISO-8601 UTC timestamp
@@ -23,7 +22,7 @@ Expected message format (as produced by position_report_processor.py):
 
 Configuration (environment variables):
     KAFKA_BOOTSTRAP_SERVERS  default: host.docker.internal:9093
-    INPUT_TOPIC              default: liveshipdata
+    INPUT_TOPIC              default: ships_live_data
     CONSUMER_GROUP_ID        default: live-data-db-writer
     DB_HOST                  default: localhost
     DB_PORT                  default: 5432
@@ -46,14 +45,14 @@ from kafka import KafkaConsumer
 # Configuration
 # ---------------------------------------------------------------------------
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
-INPUT_TOPIC = os.getenv("INPUT_TOPIC", "liveshipdata")
+INPUT_TOPIC = os.getenv("INPUT_TOPIC", "ships_live_data")
 CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "live-data-db-writer")
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
 DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "dbpass1234")
 
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "500"))
 
@@ -67,7 +66,6 @@ INSERT INTO ships_live_data (
     course_over_ground,
     speed_over_ground,
     navigational_status,
-    rate_of_turn,
     latitude,
     longitude,
     updated_at
@@ -77,7 +75,6 @@ INSERT INTO ships_live_data (
     %(course_over_ground)s,
     %(speed_over_ground)s,
     %(navigational_status)s,
-    %(rate_of_turn)s,
     %(latitude)s,
     %(longitude)s,
     %(updated_at)s
@@ -87,7 +84,6 @@ ON CONFLICT (ship_id) DO UPDATE SET
     course_over_ground  = EXCLUDED.course_over_ground,
     speed_over_ground   = EXCLUDED.speed_over_ground,
     navigational_status = EXCLUDED.navigational_status,
-    rate_of_turn        = EXCLUDED.rate_of_turn,
     latitude            = EXCLUDED.latitude,
     longitude           = EXCLUDED.longitude,
     updated_at          = EXCLUDED.updated_at;
@@ -102,7 +98,6 @@ REQUIRED_FIELDS = {
     "course_over_ground",
     "speed_over_ground",
     "navigational_status",
-    "rate_of_turn",
     "latitude",
     "longitude",
     "updated_at",
@@ -189,7 +184,7 @@ def main() -> None:
             valid, reason = validate_message(msg)
             if not valid:
                 skipped += 1
-                log.debug("Skipped message: %s", reason)
+                log.info("Skipped message: %s", reason)
                 continue
 
             batch.append(msg)

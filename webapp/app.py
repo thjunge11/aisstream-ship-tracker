@@ -32,11 +32,11 @@ from flask import Flask, jsonify, render_template
 # Configuration
 # ---------------------------------------------------------------------------
 DB_CONFIG: dict = {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", "host.docker.internal"),
     "port": int(os.getenv("DB_PORT", "5432")),
     "dbname": os.getenv("DB_NAME", "postgres"),
     "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", ""),
+    "password": os.getenv("DB_PASSWORD", "dbpass1234"),
 }
 
 HISTORY_LIMIT = int(os.getenv("HISTORY_LIMIT", "200"))
@@ -76,18 +76,22 @@ def ships_live():
             cur.execute(
                 """
                 SELECT ship_id, ship_name, course_over_ground, speed_over_ground,
-                       navigational_status, rate_of_turn, latitude, longitude, updated_at
+                       navigational_status, latitude, longitude, updated_at
                 FROM ships_live_data
                 WHERE latitude IS NOT NULL AND longitude IS NOT NULL
                 """
             )
             rows = cur.fetchall()
 
+        log.info("Fetched %d live ship records from DB", len(rows))
+
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT ship_id FROM tracking_config WHERE enabled_to IS NULL"
             )
             tracked_ids: set[int] = {row[0] for row in cur.fetchall()}
+
+        log.info("Currently tracking %d ships", len(tracked_ids))
 
         features = []
         for row in rows:
@@ -110,7 +114,6 @@ def ships_live():
                             (row["speed_over_ground"] or 0) / 10.0, 1
                         ),
                         "navigational_status": row["navigational_status"] or "",
-                        "rate_of_turn": row["rate_of_turn"] or 0,
                         "updated_at": (
                             row["updated_at"].isoformat()
                             if row["updated_at"]
@@ -120,6 +123,8 @@ def ships_live():
                     },
                 }
             )
+        
+        log.info("Returning %d features for live ship data", len(features))
 
         return jsonify({"type": "FeatureCollection", "features": features})
     except Exception as exc:
