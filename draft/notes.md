@@ -373,3 +373,10 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
   - retention policy for kafka topics
   - Done: CREATE INDEX ON position_history (ship_id, recorded_at DESC)
    
+
+
+todo
+- clean live data after 1 hour for oudated
+- somehow mark ships as "inactive" if no new position reports received for a certain time (e.g., 30 minutes) and move them to a separate table "ships_inactive_data" or set a flag in the "ships_live_data" table, so that they can be visualized differently on the map (e.g., with a different color or icon)
+- gather log from etl fo rerror statistics
+

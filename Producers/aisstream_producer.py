@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import websockets
 import json
 from datetime import datetime, timezone
@@ -11,9 +12,15 @@ import os
 load_dotenv("../.env")
 API_Key = os.getenv("API_Key")
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+log = logging.getLogger(__name__)
+
 async def connect_ais_stream():
 
-    async with websockets.connect("wss://stream.aisstream.io/v0/stream") as websocket:
+    async with websockets.connect("wss://stream.aisstream.io/v0/stream", ping_timeout=60) as websocket:
         
         message_counter = 0
         message_counter_stats_interval = 10000
@@ -29,24 +36,23 @@ async def connect_ais_stream():
         # subscribe async to the AIS stream with the API key and bounding box
         subscribe_message = {"APIKey": API_Key, "BoundingBoxes": [[[-90, -180], [90, 180]]]}
         subscribe_message_json = json.dumps(subscribe_message)
-        print(subscribe_message_json)
+        log.info(f"Subscribing to AIS stream with message: {subscribe_message_json}")        
         await websocket.send(subscribe_message_json)
 
         async for message_json in websocket:
-            message = json.loads(message_json)
-            # print(message)
+            message = json.loads(message_json)            
             producer.send(message["MessageType"], message)  # Send the raw JSON message to Kafka
             producer.flush()  # Ensure the message is sent to Kafka
 
             # some load statistics
             if message_counter == 0:
-                timestamp_start = datetime.now(timezone.utc)      
-                print(f"[{timestamp_start}] Connected to AIS stream, starting to process messages...")
+                timestamp_start = datetime.now(timezone.utc)
+                log.info(f"Connected to AIS stream, starting to process messages...")                      
                           
             message_counter += 1
 
             if message_counter % message_counter_stats_interval == 0:
-                print(f"[{datetime.now(timezone.utc)}] Processed {message_counter} messages")
+                log.info(f"Processed {message_counter} messages, sending stats to Kafka...")                
                 # create some statistisc in json format and send to Kafka
                 stats = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -57,9 +63,9 @@ async def connect_ais_stream():
                 }
                 timestamp_start = datetime.now(timezone.utc)  # reset the timer
                 message_counter_start = message_counter  # reset the message counter
-                producer.send("stats", stats)
+                producer.send("Datasource_statistics", stats)
                 producer.flush()
-                print(f"[{datetime.now(timezone.utc)}] Sent stats to Kafka: {stats}")
+                log.info(f"Sent stats to Kafka: {stats}")
                 
 
 if __name__ == "__main__":
