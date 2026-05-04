@@ -324,8 +324,31 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
   
   ![ais_data_model.png](assets/ais_data_model.png)
 
+- AIS NavigationalStatus code → human-readable string (ITU-R M.1371-5)
+	``` python
+	NAV_STATUS_NOT_DEFINED = 15  # AIS default / not available value
+
+	NAVIGATIONAL_STATUS: dict[int, str] = {
+		0: "Under way using engine",
+		1: "At anchor",
+		2: "Not under command",
+		3: "Restricted manoeuvrability",
+		4: "Constrained by her draught",
+		5: "Moored",
+		6: "Aground",
+		7: "Engaged in fishing",
+		8: "Under way sailing",
+		9: "Reserved for future use",
+		10: "Reserved for future use",
+		11: "Power-driven vessel towing astern",
+		12: "Power-driven vessel pushing ahead or towing alongside",
+		13: "Reserved for future use",
+		14: "AIS-SART is active",
+		15: "Not defined",
+	}
+	```
+
 - Application architecture
- 
 
 ``` code
   Data source: aisstream.io websocket (WebSocket API, subscription with API key and bounding box)
