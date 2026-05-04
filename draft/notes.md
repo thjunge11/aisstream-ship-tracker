@@ -367,3 +367,9 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
   FlaskWebApp (Python) reads from PostgreSQL tables "ships_live_data" and "position_history" and visualizes ship positions on a map with MapLibre GL JS
   
 ```
+
+- architecture notes:
+  - position_history needs partitioning by recorded_at
+  - retention policy for kafka topics
+  - Done: CREATE INDEX ON position_history (ship_id, recorded_at DESC)
+   
