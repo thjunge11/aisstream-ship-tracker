@@ -58,9 +58,9 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "dbpass1234")
 
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "500"))
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1"))
 # How often (in messages consumed) to re-query the tracking_config table
-TRACKING_REFRESH_INTERVAL = int(os.getenv("TRACKING_REFRESH_INTERVAL", "10000"))
+TRACKING_REFRESH_INTERVAL = int(os.getenv("TRACKING_REFRESH_INTERVAL", "5000"))
 AUTO_OFFSET_RESET = os.getenv("AUTO_OFFSET_RESET", "earliest")
 
 # ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ def main() -> None:
             valid, reason = validate_message(msg)
             if not valid:
                 skipped += 1
-                log.debug("Skipped message: %s", reason)
+                log.info("Skipped message: %s", reason)
                 continue
 
             if msg["ship_id"] not in tracked_ships:

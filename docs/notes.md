@@ -368,15 +368,18 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
   
 ```
 
-- architecture notes:
+Dev
   - position_history needs partitioning by recorded_at
   - retention policy for kafka topics
   - Done: CREATE INDEX ON position_history (ship_id, recorded_at DESC)
-   
+  - clean live data after 1 hour for oudated
+  - somehow mark ships as "inactive" if no new position reports received for a certain time (e.g., 30 minutes) and move them to a separate table "ships_inactive_data" or set a flag in the "ships_live_data" table, so that they can be visualized differently on the map (e.g., with a different color or icon)
+  - clean out "Unknwon" ship names from the database, as they are not useful for visualization and analysis
+
+Ops
+- make python apps containerized with Docker and run them in separate containers for better scalability and maintainability
+- use docker-compose to orchestrate the different containers (Kafka, PostgreSQL, Kafka Producer, Kafka ELT Consumer, Kafka ELT Producer, FlaskWebApp)
+- gather logs rom for error statistics
 
 
-todo
-- clean live data after 1 hour for oudated
-- somehow mark ships as "inactive" if no new position reports received for a certain time (e.g., 30 minutes) and move them to a separate table "ships_inactive_data" or set a flag in the "ships_live_data" table, so that they can be visualized differently on the map (e.g., with a different color or icon)
-- gather log from etl fo rerror statistics
 

@@ -1,0 +1,11 @@
+auth:
+  type: DISABLED
+kafka:
+  clusters:
+  - bootstrapServers: host.docker.internal:9093
+    name: AISAPItestcluster
+    properties: {}
+    readOnly: false
+rbac:
+  roles: []
+webclient: {}
