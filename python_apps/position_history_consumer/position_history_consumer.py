@@ -1,12 +1,14 @@
 """
-Live Ship Data DB Writer
-========================
-Reads processed ship-position messages from the Kafka topic `ships_live_data`
-and upserts them into the PostgreSQL table `ships_live_data`.
+Position History Writer
+=======================
+Reads processed ship-position messages from the Kafka topic `shipslivedata`
+and inserts them into the PostgreSQL table `position_history` — but only for
+ships whose tracking is currently active, i.e. those that have a row in
+`tracking_config` with `enabled_to IS NULL`.
 
-A row with the same `ship_id` (MMSI) is updated in place; new ships are
-inserted.  Messages are committed to the database in configurable batches
-to keep write amplification low while still providing near-real-time updates.
+The set of actively-tracked ship IDs is loaded from the database at startup
+and refreshed every TRACKING_REFRESH_INTERVAL messages so that newly-enabled
+or newly-disabled ships are picked up without restarting the process.
 
 Expected message format (as produced by position_report_processor.py):
     {
@@ -21,15 +23,17 @@ Expected message format (as produced by position_report_processor.py):
     }
 
 Configuration (environment variables):
-    KAFKA_BOOTSTRAP_SERVERS  default: host.docker.internal:9093
-    INPUT_TOPIC              default: ships_live_data
-    CONSUMER_GROUP_ID        default: live-data-db-writer
-    DB_HOST                  default: localhost
-    DB_PORT                  default: 5432
-    DB_NAME                  default: postgres
-    DB_USER                  default: postgres
-    DB_PASSWORD              default: (empty)
-    BATCH_SIZE               default: 500   -- rows per DB transaction
+    KAFKA_BOOTSTRAP_SERVERS       default: host.docker.internal:9093
+    INPUT_TOPIC                   default: ships_live_data
+    CONSUMER_GROUP_ID             default: position-history-writer
+    DB_HOST                       default: localhost
+    DB_PORT                       default: 5432
+    DB_NAME                       default: postgres
+    DB_USER                       default: postgres
+    DB_PASSWORD                   default: (empty)
+    BATCH_SIZE                    default: 500   -- rows per DB transaction
+    TRACKING_REFRESH_INTERVAL     default: 10000 -- messages between refreshes
+    AUTO_OFFSET_RESET             default: earliest -- 'earliest' or 'latest'
 """
 
 import json
@@ -46,7 +50,7 @@ from kafka import KafkaConsumer
 # ---------------------------------------------------------------------------
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 INPUT_TOPIC = os.getenv("INPUT_TOPIC", "ships_live_data")
-CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "live-data-db-writer")
+CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "position-history-writer")
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
@@ -55,38 +59,38 @@ DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "dbpass1234")
 
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "500"))
+# How often (in messages consumed) to re-query the tracking_config table
+TRACKING_REFRESH_INTERVAL = int(os.getenv("TRACKING_REFRESH_INTERVAL", "10000"))
+AUTO_OFFSET_RESET = os.getenv("AUTO_OFFSET_RESET", "earliest")
 
 # ---------------------------------------------------------------------------
 # SQL
 # ---------------------------------------------------------------------------
-UPSERT_SQL = """
-INSERT INTO ships_live_data (
+INSERT_HISTORY_SQL = """
+INSERT INTO position_history (
     ship_id,
-    ship_name,
     course_over_ground,
     speed_over_ground,
-    navigational_status,
+    navigational_status,    
     latitude,
     longitude,
-    updated_at
+    recorded_at
 ) VALUES (
     %(ship_id)s,
-    %(ship_name)s,
     %(course_over_ground)s,
     %(speed_over_ground)s,
     %(navigational_status)s,
     %(latitude)s,
     %(longitude)s,
     %(updated_at)s
-)
-ON CONFLICT (ship_id) DO UPDATE SET
-    ship_name           = EXCLUDED.ship_name,
-    course_over_ground  = EXCLUDED.course_over_ground,
-    speed_over_ground   = EXCLUDED.speed_over_ground,
-    navigational_status = EXCLUDED.navigational_status,
-    latitude            = EXCLUDED.latitude,
-    longitude           = EXCLUDED.longitude,
-    updated_at          = EXCLUDED.updated_at;
+);
+"""
+
+# Fetch all ship_ids that are currently being tracked (enabled_to IS NULL)
+TRACKED_SHIPS_SQL = """
+SELECT ship_id
+FROM tracking_config
+WHERE enabled_to IS NULL;
 """
 
 # ---------------------------------------------------------------------------
@@ -94,7 +98,6 @@ ON CONFLICT (ship_id) DO UPDATE SET
 # ---------------------------------------------------------------------------
 REQUIRED_FIELDS = {
     "ship_id",
-    "ship_name",
     "course_over_ground",
     "speed_over_ground",
     "navigational_status",
@@ -112,12 +115,18 @@ def validate_message(msg: dict) -> tuple[bool, str]:
     return True, ""
 
 
-def flush_batch(cursor, batch: list[dict], log: logging.Logger) -> int:
+def load_tracked_ships(cursor) -> set[int]:
+    """Query tracking_config and return the set of actively-tracked ship IDs."""
+    cursor.execute(TRACKED_SHIPS_SQL)
+    return {row[0] for row in cursor.fetchall()}
+
+
+def flush_batch(cursor, batch: list[dict]) -> int:
     """
-    Execute a batch upsert and return the number of rows written.
+    Execute a batch insert and return the number of rows written.
     The caller is responsible for committing/rolling back the transaction.
     """
-    psycopg2.extras.execute_batch(cursor, UPSERT_SQL, batch)
+    psycopg2.extras.execute_batch(cursor, INSERT_HISTORY_SQL, batch)
     return len(batch)
 
 
@@ -153,45 +162,69 @@ def main() -> None:
     )
     conn.autocommit = False
     cursor = conn.cursor()
+    # Separate cursor used only for tracking_config lookups so that its
+    # SELECT queries never interfere with the open batch transaction.
+    config_cursor = conn.cursor()
     log.info("PostgreSQL connection established.")
+
+    # Load initial set of tracked ships
+    tracked_ships = load_tracked_ships(config_cursor)
+    log.info("Loaded %d actively-tracked ships from tracking_config.", len(tracked_ships))
 
     # -- Kafka consumer -------------------------------------------------------
     consumer = KafkaConsumer(
         INPUT_TOPIC,
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        auto_offset_reset="earliest",
+        auto_offset_reset=AUTO_OFFSET_RESET,
         enable_auto_commit=True,
         group_id=CONSUMER_GROUP_ID,
     )
 
     log.info(
-        "Live data DB writer started. Reading from '%s', writing to 'ships_live_data'.",
+        "Position history writer started. Reading from '%s', writing to 'position_history'.",
         INPUT_TOPIC,
     )
 
     batch: list[dict] = []
     written = 0
     skipped = 0
+    messages_since_refresh = 0
 
     try:
         for kafka_msg in consumer:
             if not running:
                 break
 
+            messages_since_refresh += 1
+
+            # Periodically refresh the tracked-ships set
+            if messages_since_refresh >= TRACKING_REFRESH_INTERVAL:
+                tracked_ships = load_tracked_ships(config_cursor)
+                log.info(
+                    "Refreshed tracking config: %d actively-tracked ships.",
+                    len(tracked_ships),
+                )
+                messages_since_refresh = 0
+
             msg = kafka_msg.value
 
             valid, reason = validate_message(msg)
             if not valid:
                 skipped += 1
-                log.info("Skipped message: %s", reason)
+                log.debug("Skipped message: %s", reason)
+                continue
+
+            if msg["ship_id"] not in tracked_ships:
+                skipped += 1
+                log.debug("Skipped ship_id=%s: not in tracking_config with enabled_to IS NULL", msg["ship_id"])
                 continue
 
             batch.append(msg)
 
             if len(batch) >= BATCH_SIZE:
                 try:
-                    written += flush_batch(cursor, batch, log)
+                    written += flush_batch(cursor, batch)
                     conn.commit()
                     log.info("Flushed batch: written=%d  skipped=%d", written, skipped)
                 except Exception:
@@ -204,13 +237,14 @@ def main() -> None:
         # Flush any remaining messages before exit
         if batch:
             try:
-                written += flush_batch(cursor, batch, log)
+                written += flush_batch(cursor, batch)
                 conn.commit()
             except Exception:
                 conn.rollback()
                 log.exception("Final batch write failed, rolled back.")
 
         cursor.close()
+        config_cursor.close()
         conn.close()
         consumer.close()
         log.info("Shutdown complete. written=%d  skipped=%d", written, skipped)
