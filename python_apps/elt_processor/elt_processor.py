@@ -201,9 +201,9 @@ def transform_to_ships_live_data(msg: dict) -> dict:
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    log = logging.getLogger(__name__)
+    log = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 
     # Graceful shutdown flag
     running = True

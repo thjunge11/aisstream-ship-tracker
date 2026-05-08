@@ -11,12 +11,13 @@ from dotenv import load_dotenv
 import os
 load_dotenv("../.env")
 API_Key = os.getenv("API_Key")
+MONITORING_TOPIC = os.getenv("AIS_PRODUCER_MONITORING_TOPIC", "datasource_statistics")
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-log = logging.getLogger(__name__)
+log = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 
 async def connect_ais_stream():
 
@@ -52,7 +53,7 @@ async def connect_ais_stream():
             message_counter += 1
 
             if message_counter % message_counter_stats_interval == 0:
-                log.info(f"Processed {message_counter} messages, sending stats to Kafka...")                
+                log.info(f"Processed {message_counter} messages")                
                 # create some statistisc in json format and send to Kafka
                 stats = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -63,9 +64,9 @@ async def connect_ais_stream():
                 }
                 timestamp_start = datetime.now(timezone.utc)  # reset the timer
                 message_counter_start = message_counter  # reset the message counter
-                producer.send("Datasource_statistics", stats)
+                producer.send(MONITORING_TOPIC, stats)
                 producer.flush()
-                log.info(f"Sent stats to Kafka: {stats}")
+                log.info(f"Sent stats to Kafka, current message rate: {stats['interval_message_rate']}")
                 
 
 if __name__ == "__main__":
