@@ -369,12 +369,14 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
 ```
 
 Dev
-
+- add ship static data to the data model and pipeline (e.g., ship type, dimensions, destination, etc.) for more detailed analysis and visualization
+- implement data validation and transformation in the Kafka ELT Consumer to ensure data quality and consistency before writing to the database
 
 Ops
 - make python apps containerized with Docker and run them in separate containers for better scalability and maintainability
 - use docker-compose to orchestrate the different containers (Kafka, PostgreSQL, Kafka Producer, Kafka ELT Consumer, Kafka ELT Producer, FlaskWebApp)
 - gather logs rom for error statistics
+- add statsitics topic per pythion file
 - set up monitoring and alerting for the different components (e.g., Kafka, PostgreSQL, Python apps) to ensure the system is running smoothly and to quickly identify and resolve any issues that may arise.
 
 webapp commands:
