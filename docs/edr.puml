@@ -15,9 +15,8 @@ entity "ships_live_data" as ships {
 
 entity "tracking_config" as config {
     * ship_id : INTEGER <<PK, FK>>
+    * enabled_from : TIMESTAMPTZ <<PK>>
     --
-    enabled : BOOLEAN
-    enabled_from : TIMESTAMPTZ
     enabled_to : TIMESTAMPTZ
 }
 

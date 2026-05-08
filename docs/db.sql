@@ -12,10 +12,10 @@ CREATE TABLE ships_live_data (
 
 -- Config: which ships get full history
 CREATE TABLE tracking_config (
-    ship_id INTEGER PRIMARY KEY REFERENCES ships_live_data (ship_id),
-    enabled BOOLEAN DEFAULT TRUE,
+    ship_id INTEGER NOT NULL REFERENCES ships_live_data (ship_id),
     enabled_from TIMESTAMPTZ NOT NULL DEFAULT now(),
-    enabled_to TIMESTAMPTZ -- NULL means still active
+    enabled_to TIMESTAMPTZ, -- NULL means still active
+    PRIMARY KEY (ship_id, enabled_from)
 );
 
 -- All history in one place
