@@ -29,13 +29,6 @@ CREATE TABLE position_history (
     longitude DOUBLE PRECISION NOT NULL,
     recorded_at TIMESTAMPTZ NOT NULL
 )
-PARTITION BY
-    RANGE (recorded_at) INTERVAL '1 day';
 
 -- Critical for performance
 CREATE INDEX ON position_history (ship_id, recorded_at DESC);
-
--- If scale becomes massive
--- Use time-based table partitioning (e.g., PostgreSQL PARTITION BY RANGE (recorded_at) monthly).
--- This gives you the storage isolation of per-ship tables without any of the management
--- problems — old partitions can be dropped as a single DDL operation on one object.

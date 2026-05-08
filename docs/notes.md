@@ -369,11 +369,14 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
 ```
 
 Dev
-- position_history needs partitioning by recorded_at
-- 
+
 
 Ops
 - make python apps containerized with Docker and run them in separate containers for better scalability and maintainability
 - use docker-compose to orchestrate the different containers (Kafka, PostgreSQL, Kafka Producer, Kafka ELT Consumer, Kafka ELT Producer, FlaskWebApp)
 - gather logs rom for error statistics
 - set up monitoring and alerting for the different components (e.g., Kafka, PostgreSQL, Python apps) to ensure the system is running smoothly and to quickly identify and resolve any issues that may arise.
+
+webapp commands:
+- docker build -t "ais_webapp:latest" .
+- docker run -d --rm -p 5000:5000 ais_webapp:latest
