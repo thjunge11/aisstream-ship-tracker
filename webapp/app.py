@@ -109,10 +109,7 @@ def ships_live():
                         "ship_id": row["ship_id"],
                         "ship_name": (row["ship_name"] or "").strip(),
                         "course_over_ground": row["course_over_ground"] or 0,
-                        # SOG is stored as 0.1-knot units → convert back to knots
-                        "speed_over_ground": round(
-                            (row["speed_over_ground"] or 0) / 10.0, 1
-                        ),
+                        "speed_over_ground":  row["speed_over_ground"] or 0,
                         "navigational_status": row["navigational_status"] or "",
                         "updated_at": (
                             row["updated_at"].isoformat()
@@ -179,9 +176,7 @@ def ship_history(ship_id: int):
                     "geometry": {"type": "Point", "coordinates": [lon, lat]},
                     "properties": {
                         "course_over_ground": row["course_over_ground"] or 0,
-                        "speed_over_ground": round(
-                            (row["speed_over_ground"] or 0) / 10.0, 1
-                        ),
+                        "speed_over_ground": row["speed_over_ground"] or 0,
                         "navigational_status": row["navigational_status"] or "",
                         "recorded_at": (
                             row["recorded_at"].isoformat()
