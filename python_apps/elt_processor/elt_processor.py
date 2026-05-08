@@ -35,8 +35,8 @@ from dotenv import load_dotenv
 load_dotenv("../.env")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 INPUT_TOPIC = os.getenv("INPUT_TOPIC", "PositionReport")
-OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC", "ships_live_data")
-CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "ships-live-data-processor")
+OUTPUT_TOPIC = os.getenv("LIVE_DATA_TOPIC", "ships_live_data")
+CONSUMER_GROUP_ID = os.getenv("ELT_CONSUMER_GROUP_ID", "elt-processor")
 
 # ---------------------------------------------------------------------------
 # AIS NavigationalStatus code → human-readable string (ITU-R M.1371-5)

@@ -40,7 +40,6 @@ import json
 import logging
 import os
 import signal
-
 import psycopg2
 import psycopg2.extras
 from kafka import KafkaConsumer
@@ -49,8 +48,8 @@ from kafka import KafkaConsumer
 # Configuration
 # ---------------------------------------------------------------------------
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
-INPUT_TOPIC = os.getenv("INPUT_TOPIC", "ships_live_data")
-CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "position-history-writer")
+INPUT_TOPIC = os.getenv("LIVE_DATA_TOPIC", "ships_live_data")
+CONSUMER_GROUP_ID = os.getenv("POSITION_HISTORY_CONSUMER_GROUP_ID", "position-history-consumer")
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
@@ -58,7 +57,7 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "dbpass1234")
 
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1"))
+BATCH_SIZE = int(os.getenv("POSITION_HISTORY_BATCH_SIZE", "1"))
 # How often (in messages consumed) to re-query the tracking_config table
 TRACKING_REFRESH_INTERVAL = int(os.getenv("TRACKING_REFRESH_INTERVAL", "5000"))
 AUTO_OFFSET_RESET = os.getenv("AUTO_OFFSET_RESET", "earliest")

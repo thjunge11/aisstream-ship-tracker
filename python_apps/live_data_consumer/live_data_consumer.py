@@ -45,8 +45,8 @@ from kafka import KafkaConsumer
 # Configuration
 # ---------------------------------------------------------------------------
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
-INPUT_TOPIC = os.getenv("INPUT_TOPIC", "ships_live_data")
-CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "live-data-writer")
+INPUT_TOPIC = os.getenv("LIVE_DATA_TOPIC", "ships_live_data")
+CONSUMER_GROUP_ID = os.getenv("LIVE_DATA_CONSUMER_GROUP_ID", "live-data-consumer")
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
@@ -54,7 +54,7 @@ DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "dbpass1234")
 
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "500"))
+BATCH_SIZE = int(os.getenv("LIVE_DATA_BATCH_SIZE", "500"))
 
 # ---------------------------------------------------------------------------
 # SQL
