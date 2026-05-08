@@ -3,12 +3,12 @@ Kafka Position Report Processor
 ================================
 Reads PositionReport messages from the Kafka topic `positionreports`,
 validates them, and writes the transformed data — ready for the
-`ships_live_data` table — to the Kafka topic `shipslivedata`.
+`ships_live_data` table — to the Kafka topic `ships_live_data`.
 
 Input message format (topic: positionreports):
     See PositionReport.json for the full structure.
 
-Output message format (topic: shipslivedata):
+Output message format (topic: ships_live_data):
     {
         "ship_id":              int,   -- MMSI (9 digits)
         "ship_name":            str,
@@ -24,20 +24,18 @@ Output message format (topic: shipslivedata):
 import json
 import logging
 from datetime import datetime, timezone
-
 from kafka import KafkaConsumer, KafkaProducer
+import os
+import signal
+from dotenv import load_dotenv
 
 # ---------------------------------------------------------------------------
 # Configuration – override via environment variables or edit here directly
 # ---------------------------------------------------------------------------
-import os
-import signal
-
-from dotenv import load_dotenv
 load_dotenv("../.env")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 INPUT_TOPIC = os.getenv("INPUT_TOPIC", "PositionReport")
-OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC", "shipslivedata")
+OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC", "ships_live_data")
 CONSUMER_GROUP_ID = os.getenv("CONSUMER_GROUP_ID", "ships-live-data-processor")
 
 # ---------------------------------------------------------------------------
@@ -115,6 +113,19 @@ def validate_position_report(msg: dict) -> tuple[bool, str]:
     sog = pr.get("Sog")
     if sog is not None and sog >= _SOG_NOT_AVAILABLE:
         return False, f"SOG not available: {sog!r}"
+    
+    # Ship name: Filter out empty or whitespace-only names
+    ship_name = meta.get("ShipName", "").strip()
+    if not ship_name:
+        return False, "empty or whitespace-only ShipName"
+    
+    # Ship name: Filter out "unknown" names (case-insensitive)
+    if ship_name.lower() == "unknown":
+        return False, "ShipName is 'Unknown'"
+    
+    # Ship name: Filter out names with only non alphanumerics characters
+    if ship_name and not any(c.isalnum() for c in ship_name):
+        return False, "ShipName has no alphanumeric characters"    
 
     return True, ""
 
