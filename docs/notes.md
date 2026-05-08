@@ -369,13 +369,11 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
 ```
 
 Dev
-  - position_history needs partitioning by recorded_at
-  - clean live data after 1 hour for oudated
-  - somehow mark ships as "inactive" if no new position reports received for a certain time (e.g., 30 minutes) and move them to a separate table "ships_inactive_data" or set a flag in the "ships_live_data" table, so that they can be visualized differently on the map (e.g., with a different color or icon) 
-  - make the dots in position track clickable for getting details
-  - switch to blend out live data chips
+- position_history needs partitioning by recorded_at
+- 
 
 Ops
 - make python apps containerized with Docker and run them in separate containers for better scalability and maintainability
 - use docker-compose to orchestrate the different containers (Kafka, PostgreSQL, Kafka Producer, Kafka ELT Consumer, Kafka ELT Producer, FlaskWebApp)
 - gather logs rom for error statistics
+- set up monitoring and alerting for the different components (e.g., Kafka, PostgreSQL, Python apps) to ensure the system is running smoothly and to quickly identify and resolve any issues that may arise.

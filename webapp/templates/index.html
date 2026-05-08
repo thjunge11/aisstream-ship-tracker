@@ -146,6 +146,39 @@
       z-index: 999; border: 1px solid #e94560;
     }
     #toast.show { opacity: 1; }
+
+    /* ── Stale toggle ────────────────────────────────────────── */
+    .stale-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      color: #aaa;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .stale-toggle input { display: none; }
+    .stale-slider {
+      width: 32px; height: 18px;
+      background: #0f3460;
+      border-radius: 9px;
+      position: relative;
+      border: 1px solid #1a4a7a;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .stale-slider::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #888;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .stale-toggle input:checked + .stale-slider { background: #e94560; border-color: #e94560; }
+    .stale-toggle input:checked + .stale-slider::after { transform: translateX(14px); background: #fff; }
   </style>
 </head>
 
@@ -154,6 +187,16 @@
   <div id="header">
     <h1>⚓ AIS Ship Tracker</h1>
     <button id="refresh-btn" onclick="refreshData()">↻ Refresh</button>
+    <label class="stale-toggle" title="Hide ships whose last update is older than 1 hour">
+      <input type="checkbox" id="hide-stale-toggle" onchange="onHideStaleToggle(this.checked)" />
+      <span class="stale-slider"></span>
+      Hide stale (&gt;1 h)
+    </label>
+    <label class="stale-toggle" title="Show only actively tracked ships">
+      <input type="checkbox" id="tracked-only-toggle" onchange="onTrackedOnlyToggle(this.checked)" />
+      <span class="stale-slider"></span>
+      Tracked only
+    </label>
     <span class="meta" id="status-text">Loading…</span>
   </div>
 
@@ -181,9 +224,11 @@
 
     // ── State ────────────────────────────────────────────────────────────────
     let map;
-    let liveFeatures  = [];          // current GeoJSON features
-    let activeHistory = new Set();   // ship_ids with history shown
-    let refreshTimer  = null;
+    let liveFeatures    = [];          // current GeoJSON features
+    let activeHistory  = new Set();   // ship_ids with history shown
+    let refreshTimer   = null;
+    let hideStaleShips  = false;
+    let trackedOnly     = false;
 
     // ── Toast helper ─────────────────────────────────────────────────────────
     function showToast(msg, duration = 2500) {
@@ -305,13 +350,14 @@
         const geojson = await resp.json();
 
         liveFeatures = geojson.features || [];
-        map.getSource('ships').setData(geojson);
+        const visible = getVisibleFeatures();
+        map.getSource('ships').setData({ type: 'FeatureCollection', features: visible });
 
         updateSidebar();
 
         const ts = new Date().toLocaleTimeString();
         document.getElementById('status-text').textContent =
-          `${liveFeatures.length} ships  ·  updated ${ts}`;
+          `${visible.length} ships  ·  updated ${ts}`;
       } catch (err) {
         console.error('Failed to fetch live data', err);
         document.getElementById('status-text').textContent = '⚠ Refresh failed';
@@ -331,13 +377,14 @@
 
     function renderShipList(query = '') {
       const list = document.getElementById('ship-list');
+      const visible = getVisibleFeatures();
       const filtered = query
-        ? liveFeatures.filter(f => {
+        ? visible.filter(f => {
             const p = f.properties;
             return (p.ship_name || '').toLowerCase().includes(query)
               || String(p.ship_id).includes(query);
           })
-        : liveFeatures;
+        : visible;
 
       // Sort: tracked first, then by name
       const sorted = [...filtered].sort((a, b) => {
@@ -393,6 +440,32 @@
     function onShipClick(e) {
       const feature = e.features[0];
       showShipPopup(feature, feature.geometry.coordinates.slice());
+    }
+
+    function showHistoryPointPopup(feature, coords, shipId) {
+      const p = feature.properties;
+      if (currentPopup) currentPopup.remove();
+
+      const sog = p.speed_over_ground != null ? Number(p.speed_over_ground).toFixed(1) : null;
+      const recordedAt = p.recorded_at ? new Date(p.recorded_at).toLocaleString() : '—';
+
+      // Find ship name from liveFeatures
+      const liveShip = liveFeatures.find(f => f.properties.ship_id === shipId);
+      const shipName = liveShip ? liveShip.properties.ship_name : `MMSI ${shipId}`;
+
+      const html = `
+        <div class="popup-title">📅 ${escHtml(shipName || 'Unknown Ship')}</div>
+        <div class="popup-row"><span class="popup-label">MMSI</span><span class="popup-value">${shipId}</span></div>
+        <div class="popup-row"><span class="popup-label">Recorded</span><span class="popup-value">${recordedAt}</span></div>
+        <div class="popup-row"><span class="popup-label">COG</span><span class="popup-value">${p.course_over_ground != null ? p.course_over_ground + '°' : '—'}</span></div>
+        <div class="popup-row"><span class="popup-label">SOG</span><span class="popup-value">${sog != null ? sog + ' kn' : '—'}</span></div>
+        <div class="popup-row"><span class="popup-label">Status</span><span class="popup-value">${escHtml(p.navigational_status || '—')}</span></div>
+      `;
+
+      currentPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: '260px' })
+        .setLngLat(coords)
+        .setHTML(html)
+        .addTo(map);
     }
 
     function showShipPopup(feature, coords) {
@@ -486,6 +559,13 @@
               'circle-stroke-opacity': 0.4,
             },
           }, 'ships-halo');
+
+          map.on('click', ptId, (e) => {
+            const feat = e.features[0];
+            showHistoryPointPopup(feat, feat.geometry.coordinates.slice(), shipId);
+          });
+          map.on('mouseenter', ptId, () => { map.getCanvas().style.cursor = 'pointer'; });
+          map.on('mouseleave', ptId, () => { map.getCanvas().style.cursor = ''; });
         }
 
         activeHistory.add(shipId);
@@ -529,6 +609,41 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+    }
+
+    // ── Stale filter ─────────────────────────────────────────────────────────
+    function getVisibleFeatures() {
+      let features = liveFeatures;
+      if (hideStaleShips) {
+        const cutoff = Date.now() - 60 * 60 * 1000;
+        features = features.filter(f => {
+          const ua = f.properties.updated_at;
+          return ua && new Date(ua).getTime() >= cutoff;
+        });
+      }
+      if (trackedOnly) {
+        features = features.filter(f => f.properties.tracked);
+      }
+      return features;
+    }
+
+    function _applyFilters() {
+      const visible = getVisibleFeatures();
+      map.getSource('ships').setData({ type: 'FeatureCollection', features: visible });
+      updateSidebar();
+      const ts = new Date().toLocaleTimeString();
+      document.getElementById('status-text').textContent =
+        `${visible.length} ships  ·  updated ${ts}`;
+    }
+
+    function onHideStaleToggle(checked) {
+      hideStaleShips = checked;
+      _applyFilters();
+    }
+
+    function onTrackedOnlyToggle(checked) {
+      trackedOnly = checked;
+      _applyFilters();
     }
 
     // ── Boot ─────────────────────────────────────────────────────────────────
