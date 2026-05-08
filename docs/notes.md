@@ -379,7 +379,6 @@ Ops
 - make python apps containerized with Docker and run them in separate containers for better scalability and maintainability
 - use docker-compose to orchestrate the different containers (Kafka, PostgreSQL, Kafka Producer, Kafka ELT Consumer, Kafka ELT Producer, FlaskWebApp)
 - gather logs rom for error statistics
-- prepare .env file
 - retention policy for kafka topics
 
 
