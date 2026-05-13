@@ -179,6 +179,67 @@
     }
     .stale-toggle input:checked + .stale-slider { background: #e94560; border-color: #e94560; }
     .stale-toggle input:checked + .stale-slider::after { transform: translateX(14px); background: #fff; }
+
+    /* ── Ship Details Modal ──────────────────────────────────── */
+    #ship-details-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #ship-details-overlay.open { display: flex; }
+    #ship-details-modal {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 20px 24px;
+      min-width: 300px;
+      max-width: 420px;
+      width: 90%;
+      position: relative;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+    }
+    #ship-details-modal h2 {
+      color: #e94560;
+      font-size: 1rem;
+      margin-bottom: 14px;
+      padding-right: 24px;
+    }
+    .modal-close {
+      position: absolute;
+      top: 12px; right: 14px;
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 1.2rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-close:hover { color: #e94560; }
+    .modal-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      gap: 12px;
+    }
+    .modal-label { color: #888; white-space: nowrap; }
+    .modal-value { font-weight: 600; text-align: right; word-break: break-word; }
+    .details-btn {
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      border-radius: 3px;
+      cursor: pointer;
+      border: 1px solid #e94560;
+      color: #e94560;
+      background: transparent;
+      white-space: nowrap;
+      transition: background 0.2s, color 0.2s;
+    }
+    .details-btn:hover { background: #e94560; color: #1a1a2e; }
   </style>
 </head>
 
@@ -213,6 +274,15 @@
   </div>
 
   <div id="toast"></div>
+
+  <!-- Ship Details Modal -->
+  <div id="ship-details-overlay" onclick="closeShipDetails(event)">
+    <div id="ship-details-modal">
+      <button class="modal-close" onclick="closeShipDetails()">✕</button>
+      <h2 id="modal-title">Ship Details</h2>
+      <div id="modal-body"></div>
+    </div>
+  </div>
 
   <script>
     // ── Constants ────────────────────────────────────────────────────────────
@@ -482,7 +552,10 @@
         <div class="popup-row"><span class="popup-label">SOG</span><span class="popup-value">${sog != null ? sog + ' kn' : '—'}</span></div>
         <div class="popup-row"><span class="popup-label">Status</span><span class="popup-value">${escHtml(p.navigational_status || '—')}</span></div>
         <div class="popup-row"><span class="popup-label">Updated</span><span class="popup-value">${updatedAt}</span></div>
-        ${p.tracked ? `<div class="popup-history-btn"><button class="history-toggle ${activeHistory.has(p.ship_id) ? 'active' : ''}" onclick="toggleHistory(${p.ship_id})">${activeHistory.has(p.ship_id) ? '✕ Hide History' : '⟳ Show History'}</button></div>` : ''}
+        <div class="popup-history-btn">
+          ${p.tracked ? `<button class="history-toggle ${activeHistory.has(p.ship_id) ? 'active' : ''}" onclick="toggleHistory(${p.ship_id})">${activeHistory.has(p.ship_id) ? '✕ Hide History' : '⟳ Show History'}</button>` : ''}
+          <button class="details-btn" onclick="openShipDetails(${p.ship_id})">📋 Ship Details</button>
+        </div>
       `;
 
       currentPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: '260px' })
@@ -644,6 +717,59 @@
     function onTrackedOnlyToggle(checked) {
       trackedOnly = checked;
       _applyFilters();
+    }
+
+    // ── Ship Details Modal ────────────────────────────────────────────────────
+    async function openShipDetails(shipId) {
+      const overlay = document.getElementById('ship-details-overlay');
+      const title   = document.getElementById('modal-title');
+      const body    = document.getElementById('modal-body');
+
+      title.textContent = 'Loading…';
+      body.innerHTML    = '';
+      overlay.classList.add('open');
+
+      try {
+        const resp = await fetch(`/api/ships/${shipId}/static`);
+        if (resp.status === 404) {
+          title.textContent = `MMSI ${shipId}`;
+          body.innerHTML = '<p style="color:#888; text-align:center; margin-top:8px;">No static data available for this ship.</p>';
+          return;
+        }
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const d = await resp.json();
+
+        title.textContent = escHtml(d.ship_name || `MMSI ${shipId}`);
+
+        const rows = [
+          ['MMSI',        d.ship_id],
+          ['IMO Number',  d.imo_number  || '—'],
+          ['Call Sign',   d.call_sign   || '—'],
+          ['Ship Type',   d.ship_type   || '—'],
+          ['Destination', d.destination || '—'],
+          ['ETA',         d.eta         || '—'],
+          ['Length',      d.length_m  != null ? `${d.length_m} m`  : '—'],
+          ['Width',       d.width_m   != null ? `${d.width_m} m`   : '—'],
+          ['Draught',     d.draught_m != null ? `${d.draught_m} m` : '—'],
+          ['Updated',     d.updated_at ? new Date(d.updated_at).toLocaleString() : '—'],
+        ];
+
+        body.innerHTML = rows.map(([label, value]) => `
+          <div class="modal-row">
+            <span class="modal-label">${escHtml(String(label))}</span>
+            <span class="modal-value">${escHtml(String(value))}</span>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load ship details', err);
+        title.textContent = `MMSI ${shipId}`;
+        body.innerHTML = '<p style="color:#e94560; text-align:center; margin-top:8px;">Failed to load details.</p>';
+      }
+    }
+
+    function closeShipDetails(event) {
+      if (event && event.target !== document.getElementById('ship-details-overlay')) return;
+      document.getElementById('ship-details-overlay').classList.remove('open');
     }
 
     // ── Boot ─────────────────────────────────────────────────────────────────

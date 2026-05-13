@@ -212,6 +212,51 @@ def ship_history(ship_id: int):
         conn.close()
 
 
+@app.route("/api/ships/<int:ship_id>/static")
+def ship_static(ship_id: int):
+    """Return static data for a ship from ships_static_data."""
+    try:
+        conn = _get_conn()
+    except Exception as exc:
+        log.error("DB connection failed: %s", exc)
+        return jsonify({"error": "database unavailable"}), 503
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT ship_id, ship_name, call_sign, imo_number, ship_type,
+                       destination, eta, length_m, width_m, draught_m, updated_at
+                FROM ships_static_data
+                WHERE ship_id = %s
+                """,
+                (ship_id,),
+            )
+            row = cur.fetchone()
+
+        if row is None:
+            return jsonify({"error": "not found"}), 404
+
+        return jsonify({
+            "ship_id":     row["ship_id"],
+            "ship_name":   row["ship_name"],
+            "call_sign":   row["call_sign"],
+            "imo_number":  row["imo_number"],
+            "ship_type":   row["ship_type"],
+            "destination": row["destination"],
+            "eta":         row["eta"],
+            "length_m":    row["length_m"],
+            "width_m":     row["width_m"],
+            "draught_m":   row["draught_m"],
+            "updated_at":  row["updated_at"].isoformat() if row["updated_at"] else None,
+        })
+    except Exception as exc:
+        log.exception("Error fetching static data for ship %d: %s", ship_id, exc)
+        return jsonify({"error": "internal server error"}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/ships/tracked")
 def ships_tracked():
     """Return a JSON array of ship_ids that are actively tracked."""
