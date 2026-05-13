@@ -4,7 +4,7 @@ CREATE TABLE ships_live_data (
     ship_name VARCHAR(50) NOT NULL,
     course_over_ground FLOAT,
     speed_over_ground FLOAT,
-    navigational_status VARCHAR(50),
+    navigational_status VARCHAR(100),
     latitude DOUBLE PRECISION NOT NULL,
     longitude DOUBLE PRECISION NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -24,11 +24,11 @@ CREATE TABLE position_history (
     ship_id INTEGER NOT NULL REFERENCES ships_live_data (ship_id),
     course_over_ground FLOAT,
     speed_over_ground FLOAT,
-    navigational_status VARCHAR(50),
+    navigational_status VARCHAR(100),
     latitude DOUBLE PRECISION NOT NULL,
     longitude DOUBLE PRECISION NOT NULL,
     recorded_at TIMESTAMPTZ NOT NULL
-)
+);
 
 -- Critical for performance
 CREATE INDEX ON position_history (ship_id, recorded_at DESC);

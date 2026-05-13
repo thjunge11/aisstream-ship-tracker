@@ -27,16 +27,14 @@ from datetime import datetime, timezone
 from kafka import KafkaConsumer, KafkaProducer
 import os
 import signal
-from dotenv import load_dotenv
 
 # ---------------------------------------------------------------------------
 # Configuration – override via environment variables or edit here directly
 # ---------------------------------------------------------------------------
-load_dotenv("../.env")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 INPUT_TOPIC = os.getenv("INPUT_TOPIC", "PositionReport")
 OUTPUT_TOPIC = os.getenv("LIVE_DATA_TOPIC", "ships_live_data")
-CONSUMER_GROUP_ID = os.getenv("ELT_CONSUMER_GROUP_ID", "elt-processor")
+CONSUMER_GROUP_ID = os.getenv("ELT_CONSUMER_GROUP_ID", "ships-live-data-processor")
 
 # ---------------------------------------------------------------------------
 # AIS NavigationalStatus code → human-readable string (ITU-R M.1371-5)

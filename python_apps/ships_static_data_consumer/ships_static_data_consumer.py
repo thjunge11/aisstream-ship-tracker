@@ -43,14 +43,11 @@ import signal
 
 import psycopg2
 import psycopg2.extras
-from dotenv import load_dotenv
 from kafka import KafkaConsumer
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-load_dotenv("../.env")
-
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 INPUT_TOPIC = os.getenv("SHIP_STATIC_DATA_OUTPUT_TOPIC", "ships_static_data")
 CONSUMER_GROUP_ID = os.getenv("SHIP_STATIC_DATA_DB_CONSUMER_GROUP_ID", "ships-static-data-consumer")

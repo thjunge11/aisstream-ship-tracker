@@ -369,8 +369,9 @@ Example messages: PositionReport, StandardClassBPositionReport, ShipStaticData, 
 ```
 
 Dev
-- add ship static data to the data model and pipeline (e.g., ship type, dimensions, destination, etc.) for more detailed analysis and visualization
-- implement data validation and transformation in the Kafka ELT Consumer to ensure data quality and consistency before writing to the database
+- streamlit app to visualize type of ship vs where are they on map, avg length per type, draught per type...
+- kür: max speed per type (combining two datasets), max speed per draught (combining two datasets)
+
 
 Ops
 - make python apps containerized with Docker and run them in separate containers for better scalability and maintainability

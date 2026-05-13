@@ -35,15 +35,11 @@ import logging
 import os
 import signal
 from datetime import datetime, timezone
-
-from dotenv import load_dotenv
 from kafka import KafkaConsumer, KafkaProducer
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-load_dotenv("../.env")
-
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 INPUT_TOPIC = os.getenv("SHIP_STATIC_DATA_INPUT_TOPIC", "ShipStaticData")
 OUTPUT_TOPIC = os.getenv("SHIP_STATIC_DATA_OUTPUT_TOPIC", "ship_static_data")
