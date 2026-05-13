@@ -26,7 +26,7 @@ import logging
 
 import psycopg2
 import psycopg2.extras
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -51,6 +51,16 @@ log = logging.getLogger(__name__)
 
 def _get_conn() -> psycopg2.extensions.connection:
     return psycopg2.connect(**DB_CONFIG)
+
+
+@app.after_request
+def no_cache(response):
+    """Prevent browsers from caching any API response."""
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 # ---------------------------------------------------------------------------
