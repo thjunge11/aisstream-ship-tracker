@@ -100,7 +100,7 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docs/db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./config/db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
@@ -258,6 +258,33 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+
+  # ── Tracking sync (one-shot tool) ────────────────────────────────────────────
+  # Reads config/tracked_ship_ids.json and reconciles it with tracking_config.
+  # Does NOT start with `docker compose up` (profiles: tools).
+  # Run manually:  docker compose run --rm tracking-sync
+  tracking-sync:
+    build:
+      context: ./python_apps
+      dockerfile: tracking_sync/Dockerfile
+    container_name: tracking-sync
+    profiles:
+      - tools
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config:/config:ro
+    environment:
+      TRACKED_SHIP_IDS_PATH: /config/tracked_ship_ids.json
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - ais-network
+    restart: "no"
 
 # ── Shared network ────────────────────────────────────────────────────────────
 networks:

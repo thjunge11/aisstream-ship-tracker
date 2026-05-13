@@ -1,0 +1,42 @@
+name: Run Tracking Sync on EC2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  # Run automatically whenever tracked_ship_ids.json changes on main
+  push:
+    branches:
+      - main
+    paths:
+      - config/tracked_ship_ids.json
+  # Also allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Uses the same secrets as deploy.yml:
+#   EC2_HOST, EC2_USERNAME, EC2_SSH_KEY
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  tracking-sync:
+    name: Sync tracked ships on EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH into EC2 and run tracking-sync
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd ~/myCapstoneProject
+
+            # Pull latest config (tracked_ship_ids.json may have changed)
+            git pull origin main
+
+            # Run the one-shot sync container and remove it afterwards
+            docker compose run --rm tracking-sync
