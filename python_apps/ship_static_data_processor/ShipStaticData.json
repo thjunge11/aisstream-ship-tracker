@@ -1,0 +1,41 @@
+{
+	"Message": {
+		"ShipStaticData": {
+			"AisVersion": 2,
+			"CallSign": "LLSK   ",
+			"Destination": "GBKYL/FISHFARMS     ",
+			"Dimension": {
+				"A": 7,
+				"B": 60,
+				"C": 10,
+				"D": 3
+			},
+			"Dte": false,
+			"Eta": {
+				"Day": 21,
+				"Hour": 12,
+				"Minute": 34,
+				"Month": 3
+			},
+			"FixType": 15,
+			"ImoNumber": 9221308,
+			"MaximumStaticDraught": 5,
+			"MessageID": 5,
+			"Name": "MIKAL WITH          ",
+			"RepeatIndicator": 0,
+			"Spare": false,
+			"Type": 70,
+			"UserID": 259228000,
+			"Valid": true
+		}
+	},
+	"MessageType": "ShipStaticData",
+	"MetaData": {
+		"MMSI": 259228000,
+		"MMSI_String": 259228000,
+		"ShipName": "MIKAL WITH          ",
+		"latitude": 59.82083,
+		"longitude": 5.26024,
+		"time_utc": "2026-05-08 09:01:02.989422947 +0000 UTC"
+	}
+}

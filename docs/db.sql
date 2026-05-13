@@ -32,3 +32,18 @@ CREATE TABLE position_history (
 
 -- Critical for performance
 CREATE INDEX ON position_history (ship_id, recorded_at DESC);
+
+-- Ship static data (name, type, dimensions, etc.)
+CREATE TABLE ships_static_data (
+    ship_id     INTEGER PRIMARY KEY,
+    ship_name   VARCHAR(50),
+    call_sign   VARCHAR(20),
+    imo_number  INTEGER,
+    ship_type   VARCHAR(100),
+    destination VARCHAR(50),
+    eta         VARCHAR(20),
+    length_m    INTEGER,
+    width_m     INTEGER,
+    draught_m   FLOAT,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
