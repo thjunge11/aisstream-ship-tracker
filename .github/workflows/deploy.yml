@@ -1,0 +1,64 @@
+name: CD – Deploy to EC2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # allow manual re-deploy from the Actions tab
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Required GitHub repository secrets (Settings → Secrets → Actions):
+#
+#   EC2_HOST       – public IP or DNS of the EC2 instance
+#   EC2_USERNAME   – SSH user, e.g. "ubuntu" (Ubuntu AMI) or "ec2-user" (Amazon Linux)
+#   EC2_SSH_KEY    – full content of the .pem private key file
+#   ENV_FILE       – full content of the local .env file (all key=value lines)
+#
+# One-time EC2 setup (run manually after launching the instance):
+#   sudo apt-get update && sudo apt-get install -y docker.io git
+#   sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+#        -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose
+#   sudo usermod -aG docker $USER   # log out and back in after this
+#   git clone https://github.com/thjunge11/myCapstoneProject.git ~/myCapstoneProject
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH into EC2 and redeploy stack
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # Pass ENV_FILE as an environment variable so it is never
+          # interpolated directly into the shell script (prevents injection).
+          envs: ENV_FILE
+          script_stop: true   # abort on first error
+          script: |
+            set -e
+
+            cd ~/myCapstoneProject
+
+            # ── Pull latest code ─────────────────────────────────────────────
+            git pull origin main
+
+            # ── Write .env from secret ───────────────────────────────────────
+            # printf preserves newlines and avoids echo misinterpreting escape
+            # sequences. The file is written atomically to a temp file first.
+            printf '%s' "$ENV_FILE" > .env.tmp
+            mv .env.tmp .env
+
+            # ── Rebuild & restart all containers ─────────────────────────────
+            docker compose up --build -d --remove-orphans
+
+            # ── Prune dangling images to reclaim disk space ──────────────────
+            docker image prune -f
