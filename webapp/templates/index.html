@@ -428,6 +428,11 @@
         const ts = new Date().toLocaleTimeString();
         document.getElementById('status-text').textContent =
           `${visible.length} ships  ·  updated ${ts}`;
+
+        // Silently refresh history tracks for all ships currently shown
+        if (activeHistory.size > 0) {
+          await Promise.all([...activeHistory].map(id => refreshHistory(id)));
+        }
       } catch (err) {
         console.error('Failed to fetch live data', err);
         document.getElementById('status-text').textContent = '⚠ Refresh failed';
@@ -576,6 +581,21 @@
       // Update popup button if open
       if (currentPopup && currentPopup.isOpen()) {
         // Re-click logic: just close so user re-clicks; simpler than re-rendering popup.
+      }
+    }
+
+    async function refreshHistory(shipId) {
+      // Re-fetches history data and updates the existing map source in place.
+      // Does not show toasts, re-fit bounds, or re-register event listeners.
+      try {
+        const resp = await fetch(`/api/ships/${shipId}/history`);
+        if (!resp.ok) return;
+        const geojson = await resp.json();
+        if (!geojson.features || geojson.features.length === 0) return;
+        const src = map.getSource(`history-${shipId}`);
+        if (src) src.setData(geojson);
+      } catch (err) {
+        console.error(`Failed to refresh history for MMSI ${shipId}`, err);
       }
     }
 

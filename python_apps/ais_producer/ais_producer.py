@@ -4,14 +4,11 @@ import websockets
 import json
 from datetime import datetime, timezone
 from kafka import KafkaProducer
-
-
-# load API_Key from .env file
-from dotenv import load_dotenv
 import os
-load_dotenv("../.env")
-API_Key = os.getenv("API_Key")
-MONITORING_TOPIC = os.getenv("AIS_PRODUCER_MONITORING_TOPIC", "datasource_statistics")
+
+API_Key = os.getenv("API_KEY")
+MONITORING_TOPIC = os.getenv("AIS_PRODUCER_MONITORING_TOPIC", "statistics_ais_producer")
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "host.docker.internal:9093")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,7 +27,7 @@ async def connect_ais_stream():
 
         # Connect to Kafka broker running in Docker
         producer = KafkaProducer(
-            bootstrap_servers='host.docker.internal:9093',
+            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             value_serializer=lambda v: json.dumps(v).encode('utf-8')
         )
         

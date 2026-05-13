@@ -36,7 +36,6 @@ import json
 import logging
 import os
 import signal
-
 import psycopg2
 import psycopg2.extras
 from kafka import KafkaConsumer
