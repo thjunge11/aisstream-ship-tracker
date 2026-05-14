@@ -4,10 +4,11 @@ name: CD – Deploy to EC2
 # Triggers
 # ─────────────────────────────────────────────────────────────────────────────
 on:
-  push:
+  pull_request:
+    types: [closed]   # fires when a PR is closed (merged or not)
     branches:
-      - main
-  workflow_dispatch: # allow manual re-deploy from the Actions tab
+      - main          # only PRs targeting main
+  workflow_dispatch:  # allow manual re-deploy from the Actions tab
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Required GitHub repository secrets (Settings → Secrets → Actions):
@@ -29,6 +30,8 @@ jobs:
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
+    # Skip if the PR was closed without merging (no-op for workflow_dispatch)
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
 
     steps:
       - name: SSH into EC2 and redeploy stack

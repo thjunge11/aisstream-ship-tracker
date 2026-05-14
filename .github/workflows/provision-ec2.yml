@@ -1,0 +1,169 @@
+name: CI – Provision EC2 Instance
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Manually triggered only – EC2 creation is a deliberate, one-off action.
+#
+# Required GitHub repository secrets (Settings → Secrets → Actions):
+#   AWS_ACCESS_KEY_ID        – IAM user key with EC2 + SSM read permissions
+#   AWS_SECRET_ACCESS_KEY    – matching secret
+#   EC2_KEY_PAIR_NAME        – name of an existing key pair in your AWS account
+#                              (the matching .pem is stored as EC2_SSH_KEY for deploy.yml)
+#
+# Optional inputs (with sensible defaults):
+#   instance_type  – defaults to t3.large  (2 vCPU / 8 GB – enough for the full stack)
+#   aws_region     – defaults to eu-central-1
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_type:
+        description: "EC2 instance type"
+        required: false
+        default: "t3.large"
+      aws_region:
+        description: "AWS region"
+        required: false
+        default: "eu-central-1"
+
+jobs:
+  provision:
+    name: Create EC2 Instance
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. AWS credentials ─────────────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      # ── 2. Resolve latest Ubuntu 22.04 LTS AMI for the chosen region ───────
+      - name: Resolve Ubuntu 22.04 AMI
+        id: ami
+        run: |
+          AMI_ID=$(aws ssm get-parameter \
+            --name "/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id" \
+            --query "Parameter.Value" \
+            --output text)
+          echo "ami_id=$AMI_ID" >> "$GITHUB_OUTPUT"
+          echo "Using AMI: $AMI_ID"
+
+      # ── 3. Security group (idempotent – skip if already exists) ────────────
+      - name: Create / fetch security group
+        id: sg
+        run: |
+          SG_NAME="ais-ship-tracker-sg"
+
+          EXISTING=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=$SG_NAME" \
+            --query "SecurityGroups[0].GroupId" \
+            --output text)
+
+          if [ "$EXISTING" = "None" ] || [ -z "$EXISTING" ]; then
+            echo "Creating new security group..."
+            SG_ID=$(aws ec2 create-security-group \
+              --group-name "$SG_NAME" \
+              --description "AIS Ship Tracker – managed by GitHub Actions" \
+              --query "GroupId" \
+              --output text)
+
+            # SSH  – restrict to your trusted IP range in production
+            aws ec2 authorize-security-group-ingress \
+              --group-id "$SG_ID" --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+            # Flask webapp
+            aws ec2 authorize-security-group-ingress \
+              --group-id "$SG_ID" --protocol tcp --port 5000 --cidr 0.0.0.0/0
+
+          else
+            echo "Reusing existing security group: $EXISTING"
+            SG_ID="$EXISTING"
+          fi
+
+          echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
+
+      # ── 4. Launch instance with bootstrap user-data ────────────────────────
+      - name: Launch EC2 instance
+        id: ec2
+        run: |
+          # Write user-data to a temp file to avoid shell-quoting issues
+          cat > /tmp/user-data.sh << 'USERDATA'
+          #!/bin/bash
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+
+          apt-get update -y
+          apt-get install -y docker.io git curl
+
+          # Docker Compose v2 standalone binary
+          curl -fsSL \
+            "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
+            -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+
+          # Allow ubuntu user to run docker without sudo
+          usermod -aG docker ubuntu
+
+          # Clone the project repo
+          git clone https://github.com/thjunge11/myCapstoneProject.git \
+            /home/ubuntu/myCapstoneProject
+          chown -R ubuntu:ubuntu /home/ubuntu/myCapstoneProject
+          USERDATA
+
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id "${{ steps.ami.outputs.ami_id }}" \
+            --instance-type "${{ inputs.instance_type }}" \
+            --key-name "${{ secrets.EC2_KEY_PAIR_NAME }}" \
+            --security-group-ids "${{ steps.sg.outputs.sg_id }}" \
+            --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
+            --user-data file:///tmp/user-data.sh \
+            --tag-specifications \
+              'ResourceType=instance,Tags=[{Key=Name,Value=ais-ship-tracker},{Key=ManagedBy,Value=github-actions}]' \
+            --query "Instances[0].InstanceId" \
+            --output text)
+
+          echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+          echo "Launched instance: $INSTANCE_ID"
+
+      # ── 5. Wait for instance to reach running state ────────────────────────
+      - name: Wait for instance running
+        run: |
+          aws ec2 wait instance-running \
+            --instance-ids "${{ steps.ec2.outputs.instance_id }}"
+
+      # ── 6. Retrieve public IP and write job summary ────────────────────────
+      - name: Get public IP and summarise
+        id: result
+        run: |
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids "${{ steps.ec2.outputs.instance_id }}" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text)
+
+          echo "public_ip=$PUBLIC_IP" >> "$GITHUB_OUTPUT"
+
+          # ── Job summary (visible in the Actions UI) ────────────────────────
+          {
+            echo "### EC2 Instance Ready"
+            echo ""
+            echo "| Property | Value |"
+            echo "| --- | --- |"
+            echo "| Instance ID | \`${{ steps.ec2.outputs.instance_id }}\` |"
+            echo "| Public IP | \`$PUBLIC_IP\` |"
+            echo "| Instance type | \`${{ inputs.instance_type }}\` |"
+            echo "| Region | \`${{ inputs.aws_region }}\` |"
+            echo "| AMI | \`${{ steps.ami.outputs.ami_id }}\` |"
+            echo ""
+            echo "**Next steps:**"
+            echo "1. Go to **Settings → Secrets → Actions** and set \`EC2_HOST\` = \`$PUBLIC_IP\`"
+            echo "2. Make sure \`EC2_USERNAME\`, \`EC2_SSH_KEY\`, and \`ENV_FILE\` are also set"
+            echo "3. Trigger the **CD – Deploy to EC2** workflow to deploy the full stack"
+            echo ""
+            echo "> The user-data bootstrap script is still running on the instance."
+            echo "> Wait ~2 minutes before triggering the deploy workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Public IP: $PUBLIC_IP"
