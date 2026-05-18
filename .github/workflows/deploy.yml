@@ -73,7 +73,7 @@ jobs:
             mv .env.tmp .env
 
             # ── Rebuild & restart all containers ─────────────────────────────
-            docker compose up --build -d --remove-orphans
+            docker-compose up --build -d --remove-orphans
 
             # ── Prune dangling images to reclaim disk space ──────────────────
             docker image prune -f
