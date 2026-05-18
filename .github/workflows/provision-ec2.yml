@@ -8,6 +8,9 @@ name: CI – Provision EC2 Instance
 #   AWS_SECRET_ACCESS_KEY    – matching secret
 #   EC2_KEY_PAIR_NAME        – name of an existing key pair in your AWS account
 #                              (the matching .pem is stored as EC2_SSH_KEY for deploy.yml)
+#   DEPLOY_SSH_KEY           – private SSH key whose public half is added as a
+#                              GitHub Deploy Key on the repo (read-only is fine)
+#                              Used to clone the private repo during bootstrap
 #
 # Optional inputs (with sensible defaults):
 #   instance_type  – defaults to t3.large  (2 vCPU / 8 GB – enough for the full stack)
@@ -88,8 +91,13 @@ jobs:
       # ── 4. Launch instance with bootstrap user-data ────────────────────────
       - name: Launch EC2 instance
         id: ec2
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
-          # Write user-data to a temp file to avoid shell-quoting issues
+          # Base64-encode the deploy key so the multiline PEM survives the heredoc
+          SSH_KEY_B64=$(printf '%s' "${DEPLOY_SSH_KEY}" | base64 -w 0)
+
+          # ── Part 1: static setup (quoted heredoc – no variable expansion) ──
           cat > /tmp/user-data.sh << 'USERDATA'
           #!/bin/bash
           set -euo pipefail
@@ -106,12 +114,30 @@ jobs:
 
           # Allow ubuntu user to run docker without sudo
           usermod -aG docker ubuntu
-
-          # Clone the project repo
-          git clone https://github.com/thjunge11/myCapstoneProject.git \
-            /home/ubuntu/myCapstoneProject
-          chown -R ubuntu:ubuntu /home/ubuntu/myCapstoneProject
           USERDATA
+
+          # ── Part 2: SSH key injection + clone (unquoted – expands variables) ─
+          cat >> /tmp/user-data.sh << USERDATA_SSH
+
+          # Install deploy SSH key for GitHub access
+          mkdir -p /root/.ssh
+          chmod 700 /root/.ssh
+          printf '%s' "${SSH_KEY_B64}" | base64 -d > /root/.ssh/id_ed25519
+          chmod 600 /root/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 github.com >> /root/.ssh/known_hosts 2>/dev/null
+
+          # Clone the private repo via SSH
+          git clone git@github.com:thjunge11/myCapstoneProject.git \
+            /home/ubuntu/myCapstoneProject
+
+          # Copy the deploy key to the ubuntu user so future git pulls also work
+          mkdir -p /home/ubuntu/.ssh
+          cp /root/.ssh/id_ed25519 /home/ubuntu/.ssh/id_ed25519
+          cp /root/.ssh/known_hosts  /home/ubuntu/.ssh/known_hosts
+          chmod 700 /home/ubuntu/.ssh
+          chmod 600 /home/ubuntu/.ssh/id_ed25519
+          chown -R ubuntu:ubuntu /home/ubuntu/.ssh /home/ubuntu/myCapstoneProject
+          USERDATA_SSH
 
           INSTANCE_ID=$(aws ec2 run-instances \
             --image-id "${{ steps.ami.outputs.ami_id }}" \

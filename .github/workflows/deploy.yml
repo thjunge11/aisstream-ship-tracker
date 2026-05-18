@@ -13,17 +13,19 @@ on:
 # ─────────────────────────────────────────────────────────────────────────────
 # Required GitHub repository secrets (Settings → Secrets → Actions):
 #
-#   EC2_HOST       – public IP or DNS of the EC2 instance
-#   EC2_USERNAME   – SSH user, e.g. "ubuntu" (Ubuntu AMI) or "ec2-user" (Amazon Linux)
-#   EC2_SSH_KEY    – full content of the .pem private key file
-#   ENV_FILE       – full content of the local .env file (all key=value lines)
+#   EC2_HOST        – public IP or DNS of the EC2 instance
+#   EC2_USERNAME    – SSH user, e.g. "ubuntu" (Ubuntu AMI) or "ec2-user" (Amazon Linux)
+#   EC2_SSH_KEY     – full content of the .pem private key file
+#   ENV_FILE        – full content of the local .env file (all key=value lines)
+#   DEPLOY_SSH_KEY  – private SSH key whose public half is added as a GitHub Deploy Key
+#                     on the repo; used to authenticate git pull on the EC2 instance
 #
 # One-time EC2 setup (run manually after launching the instance):
 #   sudo apt-get update && sudo apt-get install -y docker.io git
 #   sudo curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
 #        -o /usr/local/bin/docker-compose && sudo chmod +x /usr/local/bin/docker-compose
 #   sudo usermod -aG docker $USER   # log out and back in after this
-#   git clone https://github.com/thjunge11/myCapstoneProject.git ~/myCapstoneProject
+#   git clone git@github.com:thjunge11/myCapstoneProject.git ~/myCapstoneProject
 # ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
@@ -38,16 +40,26 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          # Pass ENV_FILE as an environment variable so it is never
+          # Pass secrets as environment variables so they are never
           # interpolated directly into the shell script (prevents injection).
-          envs: ENV_FILE
+          envs: ENV_FILE,DEPLOY_SSH_KEY
           script_stop: true   # abort on first error
           script: |
             set -e
+
+            # ── Ensure GitHub deploy key is present ──────────────────────────
+            # Writes the key on every run so deploys work even on a freshly
+            # provisioned instance or after accidental key deletion.
+            mkdir -p ~/.ssh
+            chmod 700 ~/.ssh
+            printf '%s' "${DEPLOY_SSH_KEY}" > ~/.ssh/id_ed25519
+            chmod 600 ~/.ssh/id_ed25519
+            ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
 
             cd ~/myCapstoneProject
 
