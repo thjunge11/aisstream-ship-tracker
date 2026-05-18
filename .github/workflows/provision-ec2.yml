@@ -66,7 +66,7 @@ jobs:
             echo "Creating new security group..."
             SG_ID=$(aws ec2 create-security-group \
               --group-name "$SG_NAME" \
-              --description "AIS Ship Tracker – managed by GitHub Actions" \
+              --description "AIS Ship Tracker managed by GitHub Actions" \
               --query "GroupId" \
               --output text)
 
