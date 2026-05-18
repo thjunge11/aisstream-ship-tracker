@@ -39,4 +39,4 @@ jobs:
             git pull origin main
 
             # Run the one-shot sync container and remove it afterwards
-            docker compose run --rm tracking-sync
+            docker-compose run --rm tracking-sync
