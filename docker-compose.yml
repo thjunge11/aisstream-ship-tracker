@@ -6,7 +6,7 @@ version: '3.8'
 # Brings up:  zookeeper · kafka · kafka-ui · postgres
 #             ais-producer · elt-processor · live-data-consumer
 #             position-history-consumer · ship-static-data-processor
-#             ship-static-data-consumer · webapp
+#             ship-static-data-consumer · webapp · streamlit-dashboard
 #
 # Usage:
 #   docker compose up --build          # first run (builds images)
@@ -249,6 +249,26 @@ services:
         condition: service_healthy
     ports:
       - "5000:5000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - ais-network
+    restart: unless-stopped
+
+  # ── Analytics dashboard ─────────────────────────────────────────────────────
+
+  streamlit-dashboard:
+    build: ./streamlit_dashboard
+    container_name: streamlit-dashboard
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
