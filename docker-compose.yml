@@ -17,6 +17,18 @@ version: '3.8'
 #       development.  Do not run both simultaneously – they share port 9092/9093.
 # ============================================================================
 
+# ── CloudWatch Logs – Docker awslogs driver ───────────────────────────────────
+# Every service references this anchor via `logging: *default-logging`.
+# On EC2 the instance IAM role (created by provision-ec2.yml) supplies creds.
+# For local dev, comment out logging sections or configure AWS credentials.
+x-logging: &default-logging
+  driver: awslogs
+  options:
+    awslogs-region: "${AWS_REGION:-eu-central-1}"
+    awslogs-group: /ais-ship-tracker
+    awslogs-create-group: "true"
+    awslogs-stream-prefix: docker
+
 services:
 
   # ── Infrastructure ──────────────────────────────────────────────────────────
@@ -40,6 +52,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   kafka:
     image: confluentinc/cp-kafka:7.5.3
@@ -72,6 +85,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -88,6 +102,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   postgres:
     image: postgres:16-alpine
@@ -110,6 +125,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   # ── Python apps ─────────────────────────────────────────────────────────────
   # Build context is ./python_apps so the shared requirements.txt is reachable.
@@ -130,6 +146,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   ships_live_data_processor:
     build:
@@ -147,6 +164,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   ships_live_data_consumer:
     build:
@@ -171,6 +189,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   position-history-consumer:
     build:
@@ -197,6 +216,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   ships-static-data-processor:
     build:
@@ -214,6 +234,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   ships-static-data-consumer:
     build:
@@ -238,6 +259,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   # ── Web application ──────────────────────────────────────────────────────────
 
@@ -259,6 +281,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   # ── Analytics dashboard ─────────────────────────────────────────────────────
 
@@ -279,6 +302,7 @@ services:
     networks:
       - ais-network
     restart: unless-stopped
+    logging: *default-logging
 
   # ── Tracking sync (one-shot tool) ────────────────────────────────────────────
   # Reads config/tracked_ship_ids.json and reconciles it with tracking_config.
@@ -306,6 +330,7 @@ services:
     networks:
       - ais-network
     restart: "no"
+    logging: *default-logging
 
 # ── Shared network ────────────────────────────────────────────────────────────
 networks:

@@ -12,6 +12,12 @@ name: CI – Provision EC2 Instance
 #                              GitHub Deploy Key on the repo (read-only is fine)
 #                              Used to clone the private repo during bootstrap
 #
+# The IAM user (AWS_ACCESS_KEY_ID) additionally needs permission to manage the
+# EC2 instance profile used for CloudWatch Logs:
+#   iam:GetRole, iam:CreateRole, iam:PutRolePolicy
+#   iam:GetInstanceProfile, iam:CreateInstanceProfile
+#   iam:AddRoleToInstanceProfile, iam:PassRole
+#
 # Optional inputs (with sensible defaults):
 #   instance_type  – defaults to t3.large  (2 vCPU / 8 GB – enough for the full stack)
 #   aws_region     – defaults to eu-central-1
@@ -92,7 +98,47 @@ jobs:
 
           echo "sg_id=$SG_ID" >> "$GITHUB_OUTPUT"
 
-      # ── 4. Launch instance with bootstrap user-data ────────────────────────
+      # ── 4. IAM instance profile for CloudWatch Logs ───────────────────────
+      - name: Create / fetch IAM role and instance profile
+        id: iam
+        run: |
+          ROLE_NAME="ais-ship-tracker-ec2-role"
+          PROFILE_NAME="ais-ship-tracker-ec2-profile"
+
+          # ─ Role (idempotent) ─────────────────────────────────────────────────
+          if ! aws iam get-role --role-name "$ROLE_NAME" > /dev/null 2>&1; then
+            echo "Creating IAM role $ROLE_NAME..."
+            aws iam create-role \
+              --role-name "$ROLE_NAME" \
+              --assume-role-policy-document \
+                '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+            aws iam put-role-policy \
+              --role-name "$ROLE_NAME" \
+              --policy-name "CloudWatchLogsWrite" \
+              --policy-document \
+                '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents","logs:DescribeLogStreams"],"Resource":"arn:aws:logs:*:*:*"}]}'
+          else
+            echo "Reusing existing IAM role: $ROLE_NAME"
+          fi
+
+          # ─ Instance profile (idempotent) ────────────────────────────────────
+          if ! aws iam get-instance-profile --instance-profile-name "$PROFILE_NAME" > /dev/null 2>&1; then
+            echo "Creating instance profile $PROFILE_NAME..."
+            aws iam create-instance-profile \
+              --instance-profile-name "$PROFILE_NAME"
+            aws iam add-role-to-instance-profile \
+              --instance-profile-name "$PROFILE_NAME" \
+              --role-name "$ROLE_NAME"
+            # IAM is eventually consistent – give it time to propagate
+            echo "Waiting 15 s for instance profile to propagate..."
+            sleep 15
+          else
+            echo "Reusing existing instance profile: $PROFILE_NAME"
+          fi
+
+          echo "profile_name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
+
+      # ── 5. Launch instance with bootstrap user-data ────────────────────────
       - name: Launch EC2 instance
         id: ec2
         env:
@@ -148,6 +194,7 @@ jobs:
             --instance-type "${{ inputs.instance_type }}" \
             --key-name "${{ secrets.EC2_KEY_PAIR_NAME }}" \
             --security-group-ids "${{ steps.sg.outputs.sg_id }}" \
+            --iam-instance-profile "Name=${{ steps.iam.outputs.profile_name }}" \
             --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
             --user-data file:///tmp/user-data.sh \
             --tag-specifications \
@@ -158,13 +205,13 @@ jobs:
           echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
           echo "Launched instance: $INSTANCE_ID"
 
-      # ── 5. Wait for instance to reach running state ────────────────────────
+      # ── 6. Wait for instance to reach running state ─────────────────────────
       - name: Wait for instance running
         run: |
           aws ec2 wait instance-running \
             --instance-ids "${{ steps.ec2.outputs.instance_id }}"
 
-      # ── 6. Retrieve public IP and write job summary ────────────────────────
+      # ── 7. Retrieve public IP and write job summary ────────────────────────
       - name: Get public IP and summarise
         id: result
         run: |
