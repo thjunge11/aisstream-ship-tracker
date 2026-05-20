@@ -142,29 +142,42 @@ st.subheader("2 · Max Vessel Dimensions by Ship Type")
 st.caption("Source: `ships_static_data`")
 
 @st.cache_data(ttl=120)
-def load_dimensions(min_ships_: int) -> pd.DataFrame:
+def load_max_dimensions(min_ships_: int) -> pd.DataFrame:
     return query(
         """
+        WITH ranked AS (
+            SELECT
+                ship_id,
+                ship_type,
+                length_m,
+                width_m,
+                draught_m,
+                COUNT(*) OVER (PARTITION BY ship_type) AS ship_count,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ship_type ORDER BY length_m DESC
+                ) AS rn
+            FROM ships_static_data
+            WHERE ship_type  IS NOT NULL AND ship_type  <> ''
+              AND length_m   IS NOT NULL
+              AND width_m    IS NOT NULL
+              AND draught_m  IS NOT NULL
+        )
         SELECT
+            ship_id,
             ship_type,
-            ROUND(MAX(length_m)::numeric,  1) AS max_length_m,
-            ROUND(MAX(width_m)::numeric,   1) AS max_width_m,
-            ROUND(MAX(draught_m)::numeric, 2) AS max_draught_m,
-            COUNT(*)                           AS ship_count
-        FROM ships_static_data
-        WHERE ship_type   IS NOT NULL AND ship_type   <> ''
-          AND length_m    IS NOT NULL
-          AND width_m     IS NOT NULL
-          AND draught_m   IS NOT NULL
-        GROUP BY ship_type
-        HAVING COUNT(*) >= %s
+            ROUND(length_m::numeric,  1) AS max_length_m,
+            ROUND(width_m::numeric,   1) AS max_width_m,
+            ROUND(draught_m::numeric, 2) AS max_draught_m,
+            ship_count
+        FROM ranked
+        WHERE rn = 1 AND ship_count >= %s
         ORDER BY ship_count DESC
         """,
         (min_ships_,),
     )
 
 
-df_dim = load_dimensions(min_ships)
+df_dim = load_max_dimensions(min_ships)
 
 if df_dim.empty:
     st.info("No dimension data yet – waiting for ships_static_data to populate.")
@@ -197,6 +210,7 @@ else:
     with st.expander("View table"):
         st.dataframe(
             df_dim.rename(columns={
+                "ship_id":      "Ship ID",
                 "ship_type":    "Ship Type",
                 "max_length_m": "Max Length (m)",
                 "max_width_m":  "Max Width (m)",
@@ -390,15 +404,26 @@ st.caption(
 def load_max_speed(min_ships_: int) -> pd.DataFrame:
     return query(
         """
+        WITH ranked AS (
+            SELECT
+                l.ship_id,
+                s.ship_type,
+                l.speed_over_ground,
+                COUNT(*) OVER (PARTITION BY s.ship_type) AS ship_count,
+                ROW_NUMBER() OVER (
+                    PARTITION BY s.ship_type ORDER BY l.speed_over_ground DESC
+                ) AS rn
+            FROM ships_live_data   l
+            JOIN ships_static_data s ON l.ship_id = s.ship_id
+            WHERE s.ship_type IS NOT NULL AND s.ship_type <> ''
+        )
         SELECT
-            s.ship_type,
-            ROUND(MAX(l.speed_over_ground)::numeric, 2) AS max_speed_knots,
-            COUNT(*)                                     AS ship_count
-        FROM ships_live_data    l
-        JOIN ships_static_data  s ON l.ship_id = s.ship_id
-        WHERE s.ship_type IS NOT NULL AND s.ship_type <> ''
-        GROUP BY s.ship_type
-        HAVING COUNT(*) >= %s
+            ship_id,
+            ship_type,
+            ROUND(speed_over_ground::numeric, 2) AS max_speed_knots,
+            ship_count
+        FROM ranked
+        WHERE rn = 1 AND ship_count >= %s
         ORDER BY max_speed_knots DESC
         """,
         (min_ships_,),
@@ -426,9 +451,10 @@ else:
     with st.expander("View table"):
         st.dataframe(
             df_speed.rename(columns={
-                "ship_type":        "Ship Type",
-                "max_speed_knots":  "Max Speed (knots)",
-                "ship_count":       "# Ships",
+                "ship_id":         "Ship ID",
+                "ship_type":       "Ship Type",
+                "max_speed_knots": "Max Speed (knots)",
+                "ship_count":      "# Ships",
             }),
             use_container_width=True,
             hide_index=True,
