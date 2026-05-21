@@ -155,7 +155,7 @@ See [docs/deploy.md](docs/deploy.md) for the full guide. Summary:
 
 ## Screenshots
 ### Live map (Flask)
-![Flask live map showing ship positions](./docs/assets/Screenshot%202026-05-07%20123923.png)
+![Flask live map showing ship positions](./docs/assets/Screenshot%202026-05-21%20183030.png)
 ![Flask live map showing ship positions](./docs/assets/Screenshot%202026-05-21%20183117.png)
 ### Streamlit dashboard
 ![Streamlit dashboard with ship type distribution and speed trends](./docs/assets/Screenshot%202026-05-21%20183153.png)
