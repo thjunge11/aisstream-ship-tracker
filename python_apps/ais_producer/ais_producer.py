@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import ssl
 import websockets
 import json
 from datetime import datetime, timezone
@@ -16,9 +17,14 @@ logging.basicConfig(
 )
 log = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 
+## unsecure ssl approach - TESTING ONLY
+ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_CLIENT)
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 async def connect_ais_stream():
 
-    async with websockets.connect("wss://stream.aisstream.io/v0/stream", ping_timeout=60) as websocket:
+    async with websockets.connect("wss://stream.aisstream.io/v0/stream", ping_timeout=60, ssl=ssl_context) as websocket:
         
         message_counter = 0
         message_counter_stats_interval = 10000
