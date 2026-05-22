@@ -4,25 +4,11 @@ Real-time ship tracking using the global [AIS](https://en.wikipedia.org/wiki/Aut
 
 ## Architecture
 
-```
-aisstream.io WebSocket
-        │
-   ais_producer (Python)
-        │
-   Apache Kafka  ──── 20+ topics (PositionReport, ShipStaticData, …)
-        │
-   ┌────┴──────────────────────────────────┐
-   │  ships_live_data_processor            │  ships_static_data_processor
-   │  ships_live_data_consumer        ─────┤  ships_static_data_consumer
-   │  position_history_consumer            │
-   └────────────────┬──────────────────────┘
-                    │
-              PostgreSQL
-           ┌────────┴────────┐
-        Flask            Streamlit
-      live map          analytics
-      :5000              :8501
-```
+![architecture](./docs/assets/architecture.png)
+
+## Database model
+
+![database_model](./docs/assets/ais_data_model.png)
 
 ## Prerequisites
 
