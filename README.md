@@ -6,6 +6,8 @@ This was a capstone project for the [Data Engineering Bootcamp](https://www.neue
 
 The project is designed for easy local development with Docker Compose, and can be deployed to AWS EC2 with a single GitHub Actions workflow. The codebase is modular and well-documented, making it easy to extend with new features like additional data sources, more complex analytics, or alternative frontends.
 
+A project presentation is available [here](./docs/capstone_presentation.pdf).
+
 ## Architecture
 
 ![architecture](./docs/assets/architecture.png)
