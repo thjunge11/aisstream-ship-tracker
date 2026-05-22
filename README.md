@@ -2,6 +2,10 @@
 
 Real-time ship tracking using the global [AIS](https://en.wikipedia.org/wiki/Automatic_identification_system) data stream. Live ship positions are ingested via a WebSocket feed, routed through an Apache Kafka pipeline, stored in PostgreSQL, and presented via a Flask live-map and a Streamlit analytics dashboard.
 
+This was a capstone project for the [Data Engineering Bootcamp](https://www.neuefische.de/bootcamp/data-engineering-bootcamp) at Neuefische.
+
+The project is designed for easy local development with Docker Compose, and can be deployed to AWS EC2 with a single GitHub Actions workflow. The codebase is modular and well-documented, making it easy to extend with new features like additional data sources, more complex analytics, or alternative frontends.
+
 ## Architecture
 
 ![architecture](./docs/assets/architecture.png)
